@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32S3 Accelerometer Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        #app {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            min-width: 300px;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group h3 {
+            margin-bottom: 8px;
+            color: #4CAF50;
+            font-size: 14px;
+        }
+        
+        .data-display {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            padding: 8px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+        
+        .status.connected {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+        }
+        
+        .status.disconnected {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="canvas-container"></div>
+        <div id="ui">
+            <div class="control-group">
+                <h3>WebSerial Connection</h3>
+                <button id="connect-btn">Connect to ESP32S3</button>
+                <div id="connection-status" class="status disconnected">Disconnected</div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Orientation Control</h3>
+                <button id="calibrate-btn" disabled>Calibrate (Set Reference)</button>
+                <button id="reset-btn">Reset Orientation</button>
+                <div style="font-size: 11px; color: #aaa; margin-top: 5px;">
+                    Place board flat on table, then click Calibrate
+                </div>
+                <div style="margin-top: 10px;">
+                    <label for="smoothing-slider" style="font-size: 12px; color: #ccc;">Smoothing:</label>
+                    <input type="range" id="smoothing-slider" min="0" max="50" value="10" style="width: 100px; margin-left: 5px;">
+                    <span id="smoothing-value" style="font-size: 11px; color: #aaa;">0.1</span>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Accelerometer Data</h3>
+                <div class="data-display">
+                    <div>X: <span id="accel-x">0.000</span>g</div>
+                    <div>Y: <span id="accel-y">0.000</span>g</div>
+                    <div>Z: <span id="accel-z">0.000</span>g</div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Gyroscope Data</h3>
+                <div class="data-display">
+                    <div>X: <span id="gyro-x">0.00</span>°/s</div>
+                    <div>Y: <span id="gyro-y">0.00</span>°/s</div>
+                    <div>Z: <span id="gyro-z">0.00</span>°/s</div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Temperature</h3>
+                <div class="data-display">
+                    <div><span id="temperature">0.0</span>°C</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
