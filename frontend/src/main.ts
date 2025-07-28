@@ -1,4 +1,4 @@
-import { WebSerialManager } from './webserial';
+import { WebSerialManager, SensorData } from './webserial';
 import { SceneManager } from './scene';
 import { PCBModel } from './pcb-model';
 
@@ -12,7 +12,7 @@ class AccelerometerApp {
     private resetBtn: HTMLButtonElement;
     private smoothingSlider: HTMLInputElement;
     private smoothingValueSpan: HTMLSpanElement;
-    private latestSensorData: any = null;
+    private latestSensorData: SensorData | null = null;
 
     constructor() {
         this.serialManager = new WebSerialManager();
@@ -63,11 +63,11 @@ class AccelerometerApp {
             this.calibrateBtn.disabled = true;
         });
         
-        this.serialManager.on('data', (data: any) => {
+        this.serialManager.on('data', (data: SensorData) => {
             this.handleSensorData(data);
         });
         
-        this.serialManager.on('error', (error: any) => {
+        this.serialManager.on('error', (error: Error) => {
             console.error('Serial error:', error);
             this.statusEl.textContent = `Error: ${error.message}`;
             this.statusEl.className = 'status disconnected';
@@ -103,7 +103,7 @@ class AccelerometerApp {
         }
     }
 
-    private handleSensorData(data: any) {
+    private handleSensorData(data: SensorData) {
         // Store latest sensor data for calibration
         this.latestSensorData = data;
         

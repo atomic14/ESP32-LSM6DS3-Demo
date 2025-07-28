@@ -4,26 +4,28 @@ export interface SensorData {
     temperature: number;
 }
 
+type EventCallback = (...args: unknown[]) => void;
+
 export class WebSerialManager {
     private port: SerialPort | null = null;
     private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
     private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
     private decoder = new TextDecoder();
     private buffer = '';
-    private eventListeners: { [key: string]: Function[] } = {};
+    private eventListeners: { [key: string]: EventCallback[] } = {};
 
     get isConnected(): boolean {
         return this.port !== null && this.port.readable !== null;
     }
 
-    on(event: string, callback: Function) {
+    on(event: string, callback: EventCallback) {
         if (!this.eventListeners[event]) {
             this.eventListeners[event] = [];
         }
         this.eventListeners[event].push(callback);
     }
 
-    private emit(event: string, data?: any) {
+    private emit(event: string, data?: unknown) {
         if (this.eventListeners[event]) {
             this.eventListeners[event].forEach(callback => callback(data));
         }
@@ -136,7 +138,7 @@ export class WebSerialManager {
             } else {
                 console.warn('Invalid JSON structure:', jsonData);
             }
-        } catch (error) {
+        } catch {
             // Silently ignore non-JSON lines (could be debug output during startup)
             // console.warn('Failed to parse JSON sensor data:', error, 'Line:', line);
         }

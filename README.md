@@ -1,3 +1,6 @@
+[![Firmware CI](https://github.com/atomic14/ESP32-LSM6DS3-Demo/actions/workflows/firmware.yml/badge.svg)](https://github.com/atomic14/ESP32-LSM6DS3-Demo/actions/workflows/firmware.yml)
+[![Frontend CI](https://github.com/atomic14/ESP32-LSM6DS3-Demo/actions/workflows/frontend.yml/badge.svg)](https://github.com/atomic14/ESP32-LSM6DS3-Demo/actions/workflows/frontend.yml)
+
 # ESP32S3 Accelerometer Demo
 
 A complete hardware + software solution for real-time 3D accelerometer visualization. This project combines an ESP32S3 microcontroller with LSM6DS3 accelerometer and a sophisticated web-based 3D visualization frontend.
