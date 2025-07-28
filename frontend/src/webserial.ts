@@ -4,7 +4,12 @@ export interface SensorData {
     temperature: number;
 }
 
-type EventCallback = (...args: unknown[]) => void;
+interface WebSerialEvents {
+    connected: () => void;
+    disconnected: () => void;
+    data: (data: SensorData) => void;
+    error: (error: Error) => void;
+}
 
 export class WebSerialManager {
     private port: SerialPort | null = null;
@@ -12,22 +17,24 @@ export class WebSerialManager {
     private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
     private decoder = new TextDecoder();
     private buffer = '';
-    private eventListeners: { [key: string]: EventCallback[] } = {};
+    private eventListeners: { [K in keyof WebSerialEvents]?: WebSerialEvents[K][] } = {};
 
     get isConnected(): boolean {
         return this.port !== null && this.port.readable !== null;
     }
 
-    on(event: string, callback: EventCallback) {
+    on<K extends keyof WebSerialEvents>(event: K, callback: WebSerialEvents[K]) {
         if (!this.eventListeners[event]) {
             this.eventListeners[event] = [];
         }
-        this.eventListeners[event].push(callback);
+        this.eventListeners[event]!.push(callback);
     }
 
-    private emit(event: string, data?: unknown) {
+    private emit<K extends keyof WebSerialEvents>(event: K, ...args: Parameters<WebSerialEvents[K]>) {
         if (this.eventListeners[event]) {
-            this.eventListeners[event].forEach(callback => callback(data));
+            this.eventListeners[event]!.forEach(callback => {
+                (callback as (...args: Parameters<WebSerialEvents[K]>) => void)(...args);
+            });
         }
     }
 
@@ -52,7 +59,7 @@ export class WebSerialManager {
             
         } catch (error) {
             console.error('Failed to connect:', error);
-            this.emit('error', error);
+            this.emit('error', error instanceof Error ? error : new Error(String(error)));
         }
     }
 
@@ -77,7 +84,7 @@ export class WebSerialManager {
             this.emit('disconnected');
         } catch (error) {
             console.error('Failed to disconnect:', error);
-            this.emit('error', error);
+            this.emit('error', error instanceof Error ? error : new Error(String(error)));
         }
     }
 
@@ -102,7 +109,7 @@ export class WebSerialManager {
             }
         } catch (error) {
             console.error('Reading error:', error);
-            this.emit('error', error);
+            this.emit('error', error instanceof Error ? error : new Error(String(error)));
         }
     }
 
