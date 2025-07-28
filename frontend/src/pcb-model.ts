@@ -181,8 +181,6 @@ export class PCBModel {
 
     calibrateReference(accel: { x: number; y: number; z: number }) {
         // Set reference orientation based on current accelerometer reading
-        // Assumes the board is lying flat on table
-        // Use same axis mapping as updateOrientation (inverted pitch)
         const pitch = Math.atan2(accel.y, Math.sqrt(accel.x * accel.x + accel.z * accel.z));
         const roll = Math.atan2(accel.x, accel.z);
         
@@ -197,12 +195,7 @@ export class PCBModel {
     updateOrientation(accel: { x: number; y: number; z: number }) {
         if (!this.model) return;
 
-        // Remap accelerometer axes to match physical movements:
-        // Physical forward/backward -> display forward/backward (pitch around X)
-        // Physical left/right -> display left/right (roll around Z)
-        
-        // Based on your feedback, we need to swap and adjust the axis mapping
-        // Invert pitch to match physical forward/backward movements
+        // Calculate pitch and roll from accelerometer data
         const pitch = Math.atan2(accel.y, Math.sqrt(accel.x * accel.x + accel.z * accel.z));
         const roll = Math.atan2(accel.x, accel.z);
         
@@ -211,14 +204,14 @@ export class PCBModel {
         targetQuaternion.setFromEuler(new THREE.Euler(pitch, 0, roll, 'XYZ'));
         
         if (!this.isCalibrated) {
-            // Without calibration, show absolute orientation
-            this.quaternion.copy(targetQuaternion);
+            // Without calibration, show absolute orientation with smoothing
+            this.quaternion.slerp(targetQuaternion, this.smoothingFactor);
         } else {
             // With calibration, show relative to reference orientation
             const relativeQuaternion = new THREE.Quaternion();
             relativeQuaternion.multiplyQuaternions(targetQuaternion, this.referenceQuaternion.clone().invert());
             
-            // Apply smoothing to reduce jitter
+            // Apply smoothing
             this.quaternion.slerp(relativeQuaternion, this.smoothingFactor);
         }
 

@@ -34,11 +34,17 @@
             top: 20px;
             left: 20px;
             z-index: 100;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.2);
             padding: 20px;
             border-radius: 8px;
-            backdrop-filter: blur(10px);
-            min-width: 300px;
+            backdrop-filter: blur(8px);
+            min-width: 280px;
+            transition: background-color 0.3s ease, backdrop-filter 0.3s ease;
+        }
+        
+        #ui:hover {
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
         }
         
         .control-group {
@@ -120,27 +126,11 @@
             </div>
             
             <div class="control-group">
-                <h3>Accelerometer Data</h3>
+                <h3>Sensor Data</h3>
                 <div class="data-display">
-                    <div>X: <span id="accel-x">0.000</span>g</div>
-                    <div>Y: <span id="accel-y">0.000</span>g</div>
-                    <div>Z: <span id="accel-z">0.000</span>g</div>
-                </div>
-            </div>
-            
-            <div class="control-group">
-                <h3>Gyroscope Data</h3>
-                <div class="data-display">
-                    <div>X: <span id="gyro-x">0.00</span>°/s</div>
-                    <div>Y: <span id="gyro-y">0.00</span>°/s</div>
-                    <div>Z: <span id="gyro-z">0.00</span>°/s</div>
-                </div>
-            </div>
-            
-            <div class="control-group">
-                <h3>Temperature</h3>
-                <div class="data-display">
-                    <div><span id="temperature">0.0</span>°C</div>
+                    <div>Accel: <span id="accel-x">0.000</span>, <span id="accel-y">0.000</span>, <span id="accel-z">0.000</span>g</div>
+                    <div>Gyro: <span id="gyro-x">0.00</span>, <span id="gyro-y">0.00</span>, <span id="gyro-z">0.00</span>°/s</div>
+                    <div>Temp: <span id="temperature">0.0</span>°C</div>
                 </div>
             </div>
         </div>

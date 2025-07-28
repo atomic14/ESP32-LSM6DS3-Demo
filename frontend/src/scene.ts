@@ -24,7 +24,7 @@ export class SceneManager {
             0.01,  // Closer near plane for better close-up viewing
             1000
         );
-        this.camera.position.set(3, 3, 3);  // Start closer to the model
+        this.camera.position.set(2, 2, 2);  // Start closer to the model for better initial zoom
         this.camera.lookAt(0, 0, 0);
 
         // Set up renderer
