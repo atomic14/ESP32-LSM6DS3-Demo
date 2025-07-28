@@ -2,6 +2,8 @@
 
 A complete hardware + software solution for real-time 3D accelerometer visualization. This project combines an ESP32S3 microcontroller with LSM6DS3 accelerometer and a sophisticated web-based 3D visualization frontend.
 
+![Demo](images/demo.png)
+
 ## Overview
 
 - **Hardware**: ESP32S3 + LSM6DS3 accelerometer with I2C communication

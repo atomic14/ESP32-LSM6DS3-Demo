@@ -1,0 +1,55 @@
+name: Firmware CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths: 
+      - 'firmware/**'
+      - '.github/workflows/firmware.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'firmware/**'
+      - '.github/workflows/firmware.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Cache pip
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Cache PlatformIO
+      uses: actions/cache@v4
+      with:
+        path: ~/.platformio
+        key: ${{ runner.os }}-${{ hashFiles('**/lockfiles') }}
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install PlatformIO
+      run: |
+        python -m pip install --upgrade pip
+        pip install --upgrade platformio
+        
+    - name: Build firmware
+      working-directory: ./firmware
+      run: pio run
+      
+    - name: Upload firmware artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware-build
+        path: firmware/.pio/build/
+        retention-days: 7
