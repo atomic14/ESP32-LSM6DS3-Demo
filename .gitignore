@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Node (general)
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+
+

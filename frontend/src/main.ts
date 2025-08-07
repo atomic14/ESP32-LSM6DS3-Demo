@@ -1,6 +1,7 @@
 import { WebSerialManager, SensorData } from './webserial';
 import { SceneManager } from './scene';
 import { PCBModel } from './pcb-model';
+import { AccelGraph } from './graph';
 
 class AccelerometerApp {
     private serialManager: WebSerialManager;
@@ -13,6 +14,7 @@ class AccelerometerApp {
     private smoothingSlider: HTMLInputElement;
     private smoothingValueSpan: HTMLSpanElement;
     private latestSensorData: SensorData | null = null;
+    private accelGraph: AccelGraph | null = null;
 
     constructor() {
         this.serialManager = new WebSerialManager();
@@ -35,6 +37,13 @@ class AccelerometerApp {
         // Load the PCB model
         this.pcbModel = new PCBModel(this.sceneManager.scene);
         await this.pcbModel.load('/pcb.glb');
+
+        // Initialize accelerometer graph
+        const graphCanvas = document.getElementById('accel-graph') as HTMLCanvasElement | null;
+        if (graphCanvas) {
+            this.accelGraph = new AccelGraph(graphCanvas, { historyLength: 360, minG: -2, maxG: 2 });
+            window.addEventListener('resize', () => this.accelGraph?.resize());
+        }
         
         // Set up event listeners
         this.setupEventListeners();
@@ -61,6 +70,7 @@ class AccelerometerApp {
             this.statusEl.className = 'status disconnected';
             this.connectBtn.textContent = 'Connect to ESP32S3';
             this.calibrateBtn.disabled = true;
+            this.accelGraph?.clear();
         });
         
         this.serialManager.on('data', (data: SensorData) => {
@@ -122,6 +132,9 @@ class AccelerometerApp {
         if (this.pcbModel) {
             this.pcbModel.updateOrientation(data.accel);
         }
+
+        // Feed graph
+        this.accelGraph?.addPoint(data.accel);
     }
 
     private animate() {

@@ -47,6 +47,19 @@
             backdrop-filter: blur(15px);
         }
         
+        #accel-graph {
+            position: absolute;
+            right: 20px;
+            bottom: 20px;
+            width: 360px;
+            height: 140px;
+            z-index: 90;
+            border-radius: 8px;
+            overflow: hidden;
+            pointer-events: none;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+        }
+        
         .control-group {
             margin-bottom: 15px;
         }
@@ -134,6 +147,7 @@
                 </div>
             </div>
         </div>
+        <canvas id="accel-graph"></canvas>
     </div>
     
     <script type="module" src="/src/main.ts"></script>
