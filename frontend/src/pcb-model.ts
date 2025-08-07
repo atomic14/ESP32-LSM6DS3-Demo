@@ -79,18 +79,12 @@ export class PCBModel {
                     // If camera exists, place it at a distance proportional to model size once on load
                     // Consumers may override via orbit controls
                     const defaultDistance = radius * 2.5;
-                    try {
-                        // Best-effort: move camera if present (scene manager sets lookAt 0,0,0)
-                        // We cannot import SceneManager here; users can still reposition with mouse.
-                        // @ts-ignore
-                        const anyWindow = window as any;
-                        if (anyWindow && anyWindow.__sceneCamera instanceof THREE.PerspectiveCamera) {
-                            const cam: THREE.PerspectiveCamera = anyWindow.__sceneCamera;
-                            const dir = new THREE.Vector3(1, 1, 1).normalize();
-                            cam.position.copy(dir.multiplyScalar(defaultDistance));
-                        }
-                    } catch {
-                        // ignore
+                    // Best-effort: move camera if present (scene manager sets lookAt 0,0,0)
+                    const win = window as unknown as { __sceneCamera?: THREE.PerspectiveCamera };
+                    if (win.__sceneCamera) {
+                        const cam = win.__sceneCamera;
+                        const dir = new THREE.Vector3(1, 1, 1).normalize();
+                        cam.position.copy(dir.multiplyScalar(defaultDistance));
                     }
                     
                     // Enable shadows and enhance materials for better lighting
@@ -305,8 +299,8 @@ export class PCBModel {
 
     private disposeObject3D(object: THREE.Object3D) {
         object.traverse((child) => {
-            const mesh = child as THREE.Mesh;
-            if ((mesh as any).isMesh) {
+            const mesh = child as THREE.Mesh & { isMesh?: boolean };
+            if (mesh.isMesh) {
                 if (mesh.geometry) mesh.geometry.dispose();
                 const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
                 if (Array.isArray(material)) {

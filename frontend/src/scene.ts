@@ -27,7 +27,7 @@ export class SceneManager {
         this.camera.position.set(2, 2, 2);  // Start closer to the model for better initial zoom
         this.camera.lookAt(0, 0, 0);
         // Expose camera for optional external fitting logic
-        ;(window as any).__sceneCamera = this.camera;
+        (window as unknown as { __sceneCamera?: THREE.PerspectiveCamera }).__sceneCamera = this.camera;
 
         // Set up renderer
         this.renderer = new THREE.WebGLRenderer({ 
