@@ -29,6 +29,16 @@ export class PCBModel {
         }
     }
 
+    async loadFromFile(file: File) {
+        const url = URL.createObjectURL(file);
+        try {
+            console.log('Loading GLB file from user upload:', file.name);
+            await this.loadGLBFile(url);
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    }
+
     private async loadGLBFile(modelPath: string) {
         const loader = new GLTFLoader();
         
@@ -36,6 +46,12 @@ export class PCBModel {
             loader.load(
                 modelPath,
                 (gltf) => {
+                    // Remove and dispose old model if present
+                    if (this.model) {
+                        this.scene.remove(this.model);
+                        this.disposeObject3D(this.model);
+                        this.model = null;
+                    }
                     // Successfully loaded GLB file
                     this.model = gltf.scene;
                     
@@ -47,21 +63,35 @@ export class PCBModel {
                     console.log('Model size:', size);
                     console.log('Model center:', center);
                     
-                    // Scale the model up if it's too small (PCBs are usually measured in mm)
-                    // If the largest dimension is less than 1 unit, scale it up significantly
+                    // Auto-scale any model to fit a target size so users can load arbitrary models
                     const maxDimension = Math.max(size.x, size.y, size.z);
-                    let scaleFactor = 1;
-                    
-                    if (maxDimension < 1) {
-                        scaleFactor = 50; // Scale up small models (mm to a visible size)
-                    } else if (maxDimension < 10) {
-                        scaleFactor = 5;  // Moderate scale up
-                    }
-                    
+                    const targetMaxDimension = 4; // units to fit within
+                    const scaleFactor = maxDimension > 0 ? targetMaxDimension / maxDimension : 1;
                     this.model.scale.setScalar(scaleFactor);
                     
                     // Center the model at origin
                     this.model.position.sub(center.multiplyScalar(scaleFactor));
+
+                    // Ensure the entire model is within a comfortable camera distance
+                    const fittedSize = new THREE.Box3().setFromObject(this.model).getSize(new THREE.Vector3());
+                    const fittedMax = Math.max(fittedSize.x, fittedSize.y, fittedSize.z);
+                    const radius = Math.max(1, fittedMax);
+                    // If camera exists, place it at a distance proportional to model size once on load
+                    // Consumers may override via orbit controls
+                    const defaultDistance = radius * 2.5;
+                    try {
+                        // Best-effort: move camera if present (scene manager sets lookAt 0,0,0)
+                        // We cannot import SceneManager here; users can still reposition with mouse.
+                        // @ts-ignore
+                        const anyWindow = window as any;
+                        if (anyWindow && anyWindow.__sceneCamera instanceof THREE.PerspectiveCamera) {
+                            const cam: THREE.PerspectiveCamera = anyWindow.__sceneCamera;
+                            const dir = new THREE.Vector3(1, 1, 1).normalize();
+                            cam.position.copy(dir.multiplyScalar(defaultDistance));
+                        }
+                    } catch {
+                        // ignore
+                    }
                     
                     // Enable shadows and enhance materials for better lighting
                     this.model.traverse((child) => {
@@ -91,7 +121,7 @@ export class PCBModel {
                     });
                     
                     // Add coordinate system indicators scaled appropriately
-                    const axesHelper = new THREE.AxesHelper(maxDimension * scaleFactor * 0.5);
+                    const axesHelper = new THREE.AxesHelper(Math.max(0.5, maxDimension * scaleFactor * 0.5));
                     this.model.add(axesHelper);
                     
                     // Add to scene
@@ -271,5 +301,20 @@ export class PCBModel {
         const finalQuaternion = new THREE.Quaternion();
         finalQuaternion.multiplyQuaternions(this.baseRotation, this.quaternion);
         this.model.quaternion.copy(finalQuaternion);
+    }
+
+    private disposeObject3D(object: THREE.Object3D) {
+        object.traverse((child) => {
+            const mesh = child as THREE.Mesh;
+            if ((mesh as any).isMesh) {
+                if (mesh.geometry) mesh.geometry.dispose();
+                const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+                if (Array.isArray(material)) {
+                    material.forEach((m) => m && m.dispose());
+                } else if (material) {
+                    material.dispose();
+                }
+            }
+        });
     }
 }

@@ -21,11 +21,13 @@ export class SceneManager {
         this.camera = new THREE.PerspectiveCamera(
             75,
             window.innerWidth / window.innerHeight,
-            0.01,  // Closer near plane for better close-up viewing
-            1000
+            0.001,  // Allow very close near plane
+            5000    // Allow very far models after auto-scale
         );
         this.camera.position.set(2, 2, 2);  // Start closer to the model for better initial zoom
         this.camera.lookAt(0, 0, 0);
+        // Expose camera for optional external fitting logic
+        ;(window as any).__sceneCamera = this.camera;
 
         // Set up renderer
         this.renderer = new THREE.WebGLRenderer({ 
@@ -146,7 +148,9 @@ export class SceneManager {
         this.renderer.domElement.addEventListener('wheel', (event) => {
             event.preventDefault();
             const distance = this.camera.position.length();
-            const zoomSpeed = distance * 0.1; // Dynamic zoom speed based on distance
+            const baseFactor = 0.25; // increase responsiveness
+            const pinchMultiplier = event.ctrlKey ? 5 : 1; // stronger for trackpad pinch
+            const zoomSpeed = distance * baseFactor * pinchMultiplier;
             const newDistance = distance + event.deltaY * zoomSpeed * 0.001;
             const normalizedPosition = this.camera.position.clone().normalize();
             // Allow much closer zoom (0.1) and farther zoom (100)

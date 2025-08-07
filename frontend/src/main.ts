@@ -19,6 +19,9 @@ class AccelerometerApp {
     private baseRotXValue!: HTMLSpanElement;
     private baseRotYValue!: HTMLSpanElement;
     private baseRotZValue!: HTMLSpanElement;
+    private modelFileInput!: HTMLInputElement;
+    private modelFileButton!: HTMLButtonElement;
+    private modelFileNameSpan!: HTMLSpanElement;
     private latestSensorData: SensorData | null = null;
     private accelGraph: AccelGraph | null = null;
 
@@ -38,6 +41,9 @@ class AccelerometerApp {
         this.baseRotXValue = document.getElementById('base-rot-x-value') as HTMLSpanElement;
         this.baseRotYValue = document.getElementById('base-rot-y-value') as HTMLSpanElement;
         this.baseRotZValue = document.getElementById('base-rot-z-value') as HTMLSpanElement;
+        this.modelFileInput = document.getElementById('model-file') as HTMLInputElement;
+        this.modelFileButton = document.getElementById('model-file-btn') as HTMLButtonElement;
+        this.modelFileNameSpan = document.getElementById('model-file-name') as HTMLSpanElement;
 
         this.init();
     }
@@ -75,6 +81,8 @@ class AccelerometerApp {
         this.baseRotXSlider.addEventListener('input', () => this.handleBaseRotationChange());
         this.baseRotYSlider.addEventListener('input', () => this.handleBaseRotationChange());
         this.baseRotZSlider.addEventListener('input', () => this.handleBaseRotationChange());
+        this.modelFileInput.addEventListener('change', (e) => this.handleModelFileChange(e));
+        this.modelFileButton.addEventListener('click', () => this.modelFileInput.click());
         
         this.serialManager.on('connected', () => {
             this.statusEl.textContent = 'Connected';
@@ -161,6 +169,19 @@ class AccelerometerApp {
             this.handleBaseRotationChange();
         } catch {
             // ignore
+        }
+    }
+
+    private async handleModelFileChange(event: Event) {
+        const input = event.target as HTMLInputElement;
+        const file = input.files && input.files[0];
+        if (!file) return;
+        if (!this.pcbModel) return;
+        try {
+            await this.pcbModel.loadFromFile(file);
+            this.modelFileNameSpan.textContent = file.name;
+        } catch (err) {
+            console.error('Failed to load custom model:', err);
         }
     }
 
