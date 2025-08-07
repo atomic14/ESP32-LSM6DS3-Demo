@@ -47,6 +47,20 @@
             backdrop-filter: blur(15px);
         }
         
+        .footer-links {
+            margin-top: 10px;
+            font-size: 12px;
+        }
+
+        .footer-links a {
+            color: #4CAF50;
+            text-decoration: none;
+        }
+
+        .footer-links a:hover {
+            text-decoration: underline;
+        }
+
         #accel-graph {
             position: absolute;
             right: 20px;
@@ -164,6 +178,9 @@
                     <div>Gyro: <span id="gyro-x">0.00</span>, <span id="gyro-y">0.00</span>, <span id="gyro-z">0.00</span>°/s</div>
                     <div>Temp: <span id="temperature">0.0</span>°C</div>
                 </div>
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/atomic14/ESP32-LSM6DS3-Demo" target="_blank" rel="noopener noreferrer">View on GitHub</a>
             </div>
         </div>
         <canvas id="accel-graph"></canvas>
