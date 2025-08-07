@@ -13,6 +13,12 @@ class AccelerometerApp {
     private resetBtn: HTMLButtonElement;
     private smoothingSlider: HTMLInputElement;
     private smoothingValueSpan: HTMLSpanElement;
+    private baseRotXSlider!: HTMLInputElement;
+    private baseRotYSlider!: HTMLInputElement;
+    private baseRotZSlider!: HTMLInputElement;
+    private baseRotXValue!: HTMLSpanElement;
+    private baseRotYValue!: HTMLSpanElement;
+    private baseRotZValue!: HTMLSpanElement;
     private latestSensorData: SensorData | null = null;
     private accelGraph: AccelGraph | null = null;
 
@@ -26,6 +32,12 @@ class AccelerometerApp {
         this.resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
         this.smoothingSlider = document.getElementById('smoothing-slider') as HTMLInputElement;
         this.smoothingValueSpan = document.getElementById('smoothing-value') as HTMLSpanElement;
+        this.baseRotXSlider = document.getElementById('base-rot-x') as HTMLInputElement;
+        this.baseRotYSlider = document.getElementById('base-rot-y') as HTMLInputElement;
+        this.baseRotZSlider = document.getElementById('base-rot-z') as HTMLInputElement;
+        this.baseRotXValue = document.getElementById('base-rot-x-value') as HTMLSpanElement;
+        this.baseRotYValue = document.getElementById('base-rot-y-value') as HTMLSpanElement;
+        this.baseRotZValue = document.getElementById('base-rot-z-value') as HTMLSpanElement;
 
         this.init();
     }
@@ -50,6 +62,9 @@ class AccelerometerApp {
         
         // Start the render loop
         this.animate();
+
+        // Restore persisted base rotation after model is ready
+        this.restoreBaseRotation();
     }
 
     private setupEventListeners() {
@@ -57,6 +72,9 @@ class AccelerometerApp {
         this.calibrateBtn.addEventListener('click', () => this.handleCalibrate());
         this.resetBtn.addEventListener('click', () => this.handleReset());
         this.smoothingSlider.addEventListener('input', () => this.handleSmoothingChange());
+        this.baseRotXSlider.addEventListener('input', () => this.handleBaseRotationChange());
+        this.baseRotYSlider.addEventListener('input', () => this.handleBaseRotationChange());
+        this.baseRotZSlider.addEventListener('input', () => this.handleBaseRotationChange());
         
         this.serialManager.on('connected', () => {
             this.statusEl.textContent = 'Connected';
@@ -110,6 +128,39 @@ class AccelerometerApp {
         this.smoothingValueSpan.textContent = value.toFixed(2);
         if (this.pcbModel) {
             this.pcbModel.setSmoothingFactor(value);
+        }
+    }
+
+    private handleBaseRotationChange() {
+        // Quantize to 90° steps to avoid drift and ensure orthogonal base
+        const quantize = (v: number) => Math.round(v / 90) * 90;
+        const x = quantize(parseInt(this.baseRotXSlider.value) || 0);
+        const y = quantize(parseInt(this.baseRotYSlider.value) || 0);
+        const z = quantize(parseInt(this.baseRotZSlider.value) || 0);
+        // Reflect quantized values to sliders to snap UI
+        this.baseRotXSlider.value = String(x);
+        this.baseRotYSlider.value = String(y);
+        this.baseRotZSlider.value = String(z);
+        this.baseRotXValue.textContent = `${x}°`;
+        this.baseRotYValue.textContent = `${y}°`;
+        this.baseRotZValue.textContent = `${z}°`;
+        if (this.pcbModel) {
+            this.pcbModel.setBaseRotationDegrees(x, y, z);
+        }
+        localStorage.setItem('baseRotation', JSON.stringify({ x, y, z }));
+    }
+
+    private restoreBaseRotation() {
+        try {
+            const saved = localStorage.getItem('baseRotation');
+            if (!saved) return;
+            const { x, y, z } = JSON.parse(saved);
+            this.baseRotXSlider.value = String(Math.round(x));
+            this.baseRotYSlider.value = String(Math.round(y));
+            this.baseRotZSlider.value = String(Math.round(z));
+            this.handleBaseRotationChange();
+        } catch {
+            // ignore
         }
     }
 
