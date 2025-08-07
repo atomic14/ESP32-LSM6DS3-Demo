@@ -7,6 +7,8 @@ A complete hardware + software solution for real-time 3D accelerometer visualiza
 
 ![Demo](images/demo.png)
 
+Demo site: https://lsm6ds3.atomic14.com/
+
 ## Overview
 
 - **Hardware**: ESP32S3 + LSM6DS3 accelerometer with I2C communication
