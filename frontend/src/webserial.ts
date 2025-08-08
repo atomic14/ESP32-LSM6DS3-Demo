@@ -12,9 +12,12 @@ interface WebSerialEvents {
 }
 
 export class WebSerialManager {
+    static isSupported(): boolean {
+        return typeof navigator !== 'undefined' && 'serial' in navigator;
+    }
+
     private port: SerialPort | null = null;
     private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
-    private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
     private decoder = new TextDecoder();
     private buffer = '';
     private eventListeners: { [K in keyof WebSerialEvents]?: WebSerialEvents[K][] } = {};
@@ -40,6 +43,14 @@ export class WebSerialManager {
 
     async connect() {
         try {
+            if (!WebSerialManager.isSupported()) {
+                throw new Error('WebSerial API not supported in this browser. Use Chrome or Edge over HTTPS/localhost.');
+            }
+
+            if (this.isConnected) {
+                return; // already connected
+            }
+
             // Request access to serial port
             this.port = await navigator.serial.requestPort();
             
@@ -52,7 +63,6 @@ export class WebSerialManager {
             });
 
             this.reader = this.port.readable!.getReader();
-            this.writer = this.port.writable!.getWriter();
 
             this.emit('connected');
             this.startReading();
@@ -69,11 +79,6 @@ export class WebSerialManager {
                 await this.reader.cancel();
                 this.reader.releaseLock();
                 this.reader = null;
-            }
-
-            if (this.writer) {
-                this.writer.releaseLock();
-                this.writer = null;
             }
 
             if (this.port) {

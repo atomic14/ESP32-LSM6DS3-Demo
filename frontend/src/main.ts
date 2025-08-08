@@ -43,6 +43,9 @@ class AccelerometerApp {
         this.pcbModel = new PCBModel(this.sceneManager.scene);
         await this.pcbModel.load('/pcb.glb');
 
+        // Initialize smoothing UI/model linkage
+        this.handleSmoothingChange();
+
         // Initialize accelerometer graph
         const graphCanvas = document.getElementById('accel-graph') as HTMLCanvasElement | null;
         if (graphCanvas) {
@@ -104,7 +107,7 @@ class AccelerometerApp {
     
 
     private handleSmoothingChange() {
-        const value = parseInt(this.smoothingSlider.value) / 100; // Convert 0-50 to 0-0.5
+        const value = parseInt(this.smoothingSlider.value, 10) / 100; // Convert 0-50 to 0-0.5
         this.smoothingValueSpan.textContent = value.toFixed(2);
         if (this.pcbModel) {
             this.pcbModel.setSmoothingFactor(value);

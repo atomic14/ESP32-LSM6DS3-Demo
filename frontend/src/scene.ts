@@ -10,7 +10,11 @@ export class SceneManager {
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera();
         this.renderer = new THREE.WebGLRenderer();
-        this.container = document.getElementById('canvas-container')!;
+        const container = document.getElementById('canvas-container');
+        if (!container) {
+            throw new Error('Missing #canvas-container element in DOM');
+        }
+        this.container = container;
     }
 
     async init() {

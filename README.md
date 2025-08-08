@@ -24,7 +24,8 @@ Demo site: https://lsm6ds3.atomic14.com/
 │   └── platformio.ini # PlatformIO configuration
 ├── frontend/          # Three.js web application
 │   ├── src/           # TypeScript source code
-│   ├── pcb.glb        # 3D PCB model file
+│   ├── public/        # Static assets served by Vite
+│   │   └── pcb.glb    # 3D PCB model file
 │   └── package.json   # Dependencies and scripts
 ├── CLAUDE.md          # Development guidance
 └── README.md          # This file

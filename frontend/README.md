@@ -1,13 +1,12 @@
 # Accelerometer Frontend
 
-A real-time 3D visualization web application for ESP32S3 accelerometer data using Three.js and WebSerial API.
+Real-time 3D visualization of ESP32S3 accelerometer data using Three.js and the WebSerial API.
 
 ## Features
 
 - **Real-time 3D Visualization**: Live PCB orientation tracking based on accelerometer data
 - **WebSerial Integration**: Direct connection to ESP32S3 via WebSerial API
 - **GLB Model Support**: Displays actual PCB 3D model converted from STEP files
-- **Orientation Calibration**: Set reference orientation with PCB flat on table
 - **Adjustable Smoothing**: Fine-tune responsiveness vs stability
 - **Professional Lighting**: Specular lighting with realistic material reflections
 
@@ -34,10 +33,7 @@ A real-time 3D visualization web application for ESP32S3 accelerometer data usin
    - Click "Connect to ESP32S3"
    - Select your ESP32S3 serial port
 
-4. **Calibrate Orientation**
-   - Place PCB flat on table
-   - Click "Calibrate (Set Reference)"
-   - Now tilting shows relative to flat position
+4. Optional: **Load a custom GLB model** from the UI to replace the default PCB
 
 ## Usage
 
@@ -92,6 +88,7 @@ src/
 ├── scene.ts          # Three.js scene setup and lighting
 ├── pcb-model.ts      # PCB 3D model and orientation logic
 ├── webserial.ts      # WebSerial communication manager
+├── graph.ts          # Lightweight accelerometer graph overlay
 └── types.d.ts        # Type definitions
 
 public/

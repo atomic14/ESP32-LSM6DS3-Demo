@@ -121,7 +121,10 @@ export class PCBModel {
                     resolve();
                 },
                 (progress) => {
-                    console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%');
+                    if (progress.total) {
+                        const pct = (progress.loaded / progress.total) * 100;
+                        console.log(`Loading progress: ${pct.toFixed(0)}%`);
+                    }
                 },
                 (error) => {
                     console.error('Error loading GLB file:', error);
