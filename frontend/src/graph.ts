@@ -1,24 +1,28 @@
-export type AccelVector = { x: number; y: number; z: number };
+export type DataVector = { x: number; y: number; z: number };
 
 interface AccelGraphOptions {
   historyLength?: number;
-  minG?: number;
-  maxG?: number;
+  minValue?: number;
+  maxValue?: number;
+  unitLabel?: string; // label suffix for axis (e.g., 'g', '°/s')
+  title?: string; // optional chart title
 }
 
 /**
- * Lightweight canvas sparkline graph for accelerometer X/Y/Z.
+ * Lightweight canvas sparkline graph for arbitrary X/Y/Z time series.
  * Designed as an overlay; canvas should have CSS size, we handle DPR scaling.
  */
 export class AccelGraph {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private historyLength: number;
-  private minG: number;
-  private maxG: number;
-  private accelX: number[] = [];
-  private accelY: number[] = [];
-  private accelZ: number[] = [];
+  private minValue: number;
+  private maxValue: number;
+  private unitLabel: string;
+  private title: string;
+  private seriesX: number[] = [];
+  private seriesY: number[] = [];
+  private seriesZ: number[] = [];
 
   constructor(canvas: HTMLCanvasElement, options: AccelGraphOptions = {}) {
     this.canvas = canvas;
@@ -27,8 +31,10 @@ export class AccelGraph {
     this.ctx = ctx;
 
     this.historyLength = options.historyLength ?? 300;
-    this.minG = options.minG ?? -2;
-    this.maxG = options.maxG ?? 2;
+    this.minValue = options.minValue ?? -2;
+    this.maxValue = options.maxValue ?? 2;
+    this.unitLabel = options.unitLabel ?? 'g';
+    this.title = options.title ?? '';
 
     this.resize();
   }
@@ -48,22 +54,22 @@ export class AccelGraph {
     this.draw();
   }
 
-  addPoint(accel: AccelVector) {
-    this.accelX.push(accel.x);
-    this.accelY.push(accel.y);
-    this.accelZ.push(accel.z);
+  addPoint(vector: DataVector) {
+    this.seriesX.push(vector.x);
+    this.seriesY.push(vector.y);
+    this.seriesZ.push(vector.z);
 
-    if (this.accelX.length > this.historyLength) this.accelX.shift();
-    if (this.accelY.length > this.historyLength) this.accelY.shift();
-    if (this.accelZ.length > this.historyLength) this.accelZ.shift();
+    if (this.seriesX.length > this.historyLength) this.seriesX.shift();
+    if (this.seriesY.length > this.historyLength) this.seriesY.shift();
+    if (this.seriesZ.length > this.historyLength) this.seriesZ.shift();
 
     this.draw();
   }
 
   clear() {
-    this.accelX = [];
-    this.accelY = [];
-    this.accelZ = [];
+    this.seriesX = [];
+    this.seriesY = [];
+    this.seriesZ = [];
     this.draw();
   }
 
@@ -88,9 +94,18 @@ export class AccelGraph {
     ctx.lineWidth = 1;
     ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
 
-    // Grid lines: zero, ±1g
+    // Title (top-center)
+    if (this.title) {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(this.title, Math.floor(width / 2), 4);
+    }
+
+    // Grid lines: zero, ±1 unit
     const valueToY = (v: number) => {
-      const t = (v - this.minG) / (this.maxG - this.minG);
+      const t = (v - this.minValue) / (this.maxValue - this.minValue);
       return Math.max(
         padTop,
         Math.min(height - padBottom, height - padBottom - t * (height - padTop - padBottom))
@@ -98,7 +113,7 @@ export class AccelGraph {
     };
     ctx.strokeStyle = 'rgba(255,255,255,0.08)';
     ctx.setLineDash([4, 4]);
-    [this.minG, 0, 1, -1, this.maxG].forEach((v) => {
+    [this.minValue, 0, 1, -1, this.maxValue].forEach((v) => {
       const y = valueToY(v);
       ctx.beginPath();
       ctx.moveTo(padLeft, y + 0.5);
@@ -112,9 +127,9 @@ export class AccelGraph {
     ctx.font = '10px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(`${this.maxG.toFixed(1)}g`, padLeft, 2);
+    ctx.fillText(`${this.maxValue.toFixed(1)}${this.unitLabel}`, padLeft, 2);
     ctx.textBaseline = 'bottom';
-    ctx.fillText(`${this.minG.toFixed(1)}g`, padLeft, height - 2);
+    ctx.fillText(`${this.minValue.toFixed(1)}${this.unitLabel}`, padLeft, height - 2);
 
     const drawSeries = (data: number[], color: string) => {
       if (data.length < 2) return;
@@ -134,11 +149,11 @@ export class AccelGraph {
       ctx.stroke();
     };
 
-    drawSeries(this.accelX, '#ff6666');
-    drawSeries(this.accelY, '#66ff66');
-    drawSeries(this.accelZ, '#6699ff');
+    drawSeries(this.seriesX, '#ff6666');
+    drawSeries(this.seriesY, '#66ff66');
+    drawSeries(this.seriesZ, '#6699ff');
 
-    // Legend
+    // Legend (aligned to the right)
     const legendY = height - 6;
     const legendItems = [
       { label: 'X', color: '#ff6666' },
@@ -148,7 +163,14 @@ export class AccelGraph {
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
     ctx.font = '10px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-    let xOff = padLeft;
+    // Compute total legend width (box 10 + gap 4 + text + gap 10 for each item)
+    let legendTotalWidth = 0;
+    for (const item of legendItems) {
+      const textWidth = ctx.measureText(item.label).width;
+      legendTotalWidth += 10 + 4 + textWidth + 10;
+    }
+    // Starting from the right, but not beyond left padding
+    let xOff = Math.max(padLeft, (width - padRight) - legendTotalWidth);
     for (const item of legendItems) {
       ctx.fillStyle = item.color;
       ctx.fillRect(xOff, legendY - 8, 10, 3);

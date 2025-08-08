@@ -17,6 +17,15 @@ class AccelerometerApp {
     private modelFileButton!: HTMLButtonElement;
     private modelFileNameSpan!: HTMLSpanElement;
     private accelGraph: AccelGraph | null = null;
+    private gyroGraph: AccelGraph | null = null;
+
+    // Orientation mode state
+    private mode: 'accel' | 'gyro' = 'accel';
+    private lastTimestampMs: number | null = null;
+    private resetBtn!: HTMLButtonElement;
+    private modeAccelRadio!: HTMLInputElement;
+    private modeGyroRadio!: HTMLInputElement;
+    private smoothingGroupEl!: HTMLElement;
 
     constructor() {
         this.serialManager = new WebSerialManager();
@@ -46,12 +55,19 @@ class AccelerometerApp {
         // Initialize smoothing UI/model linkage
         this.handleSmoothingChange();
 
-        // Initialize accelerometer graph
-        const graphCanvas = document.getElementById('accel-graph') as HTMLCanvasElement | null;
-        if (graphCanvas) {
-            this.accelGraph = new AccelGraph(graphCanvas, { historyLength: 360, minG: -2, maxG: 2 });
-            window.addEventListener('resize', () => this.accelGraph?.resize());
+        // Initialize accelerometer and gyro graphs
+        const accelCanvas = document.getElementById('accel-graph') as HTMLCanvasElement | null;
+        if (accelCanvas) {
+            this.accelGraph = new AccelGraph(accelCanvas, { historyLength: 360, minValue: -2, maxValue: 2, unitLabel: 'g', title: 'Accelerometer (g)' });
         }
+        const gyroCanvas = document.getElementById('gyro-graph') as HTMLCanvasElement | null;
+        if (gyroCanvas) {
+            this.gyroGraph = new AccelGraph(gyroCanvas, { historyLength: 360, minValue: -500, maxValue: 500, unitLabel: '°/s', title: 'Gyroscope (°/s)' });
+        }
+        window.addEventListener('resize', () => {
+            this.accelGraph?.resize();
+            this.gyroGraph?.resize();
+        });
         
         // Set up event listeners
         this.setupEventListeners();
@@ -69,6 +85,51 @@ class AccelerometerApp {
         
         this.modelFileInput.addEventListener('change', (e) => this.handleModelFileChange(e));
         this.modelFileButton.addEventListener('click', () => this.modelFileInput.click());
+
+        // Mode radio buttons
+        this.modeAccelRadio = document.getElementById('mode-accel') as HTMLInputElement;
+        this.modeGyroRadio = document.getElementById('mode-gyro') as HTMLInputElement;
+        const resetBtn = document.getElementById('reset-orientation') as HTMLButtonElement | null;
+        if (resetBtn) this.resetBtn = resetBtn;
+        this.smoothingGroupEl = document.getElementById('smoothing-group') as HTMLElement;
+        
+        if (this.modeAccelRadio) {
+            this.modeAccelRadio.addEventListener('change', () => {
+                if (this.modeAccelRadio.checked) {
+                    this.mode = 'accel';
+                    // Enable smoothing UI in accel mode
+                    this.smoothingSlider.disabled = false;
+                    if (this.smoothingGroupEl) this.smoothingGroupEl.style.opacity = '1';
+                    this.handleSmoothingChange();
+                }
+            });
+        }
+        if (this.modeGyroRadio) {
+            this.modeGyroRadio.addEventListener('change', () => {
+                if (this.modeGyroRadio.checked) {
+                    this.mode = 'gyro';
+                    // Reset timing so first dt is not huge
+                    this.lastTimestampMs = null;
+                    // Disable smoothing UI in gyro mode
+                    this.smoothingSlider.disabled = true;
+                    if (this.smoothingGroupEl) this.smoothingGroupEl.style.opacity = '0.5';
+                }
+            });
+        }
+        // Initialize smoothing UI state based on initially selected mode
+        if (this.modeGyroRadio && this.modeGyroRadio.checked) {
+            this.smoothingSlider.disabled = true;
+            if (this.smoothingGroupEl) this.smoothingGroupEl.style.opacity = '0.5';
+        } else {
+            this.smoothingSlider.disabled = false;
+            if (this.smoothingGroupEl) this.smoothingGroupEl.style.opacity = '1';
+        }
+        if (this.resetBtn) {
+            this.resetBtn.addEventListener('click', () => {
+                this.lastTimestampMs = null;
+                this.pcbModel?.resetOrientation();
+            });
+        }
         
         this.serialManager.on('connected', () => {
             this.statusEl.textContent = 'Connected';
@@ -83,6 +144,9 @@ class AccelerometerApp {
             this.connectBtn.textContent = 'Connect to ESP32S3';
             
             this.accelGraph?.clear();
+            this.gyroGraph?.clear();
+            // Avoid large integration step on next connect
+            this.lastTimestampMs = null;
         });
         
         this.serialManager.on('data', (data: SensorData) => {
@@ -141,13 +205,23 @@ class AccelerometerApp {
         
         document.getElementById('temperature')!.textContent = data.temperature.toFixed(1);
         
-        // Update 3D model orientation with accelerometer data only
+        // Update 3D model orientation based on selected mode
         if (this.pcbModel) {
-            this.pcbModel.updateOrientation(data.accel);
+            if (this.mode === 'accel') {
+                this.pcbModel.updateOrientationFromAccel(data.accel);
+                // Reset dt anchor so switching back to gyro doesn't integrate a large gap
+                this.lastTimestampMs = performance.now();
+            } else {
+                const now = performance.now();
+                const dt = this.lastTimestampMs == null ? 0 : (now - this.lastTimestampMs) / 1000;
+                this.lastTimestampMs = now;
+                this.pcbModel.updateOrientationFromGyro(data.gyro, dt);
+            }
         }
 
-        // Feed graph
+        // Feed graphs
         this.accelGraph?.addPoint(data.accel);
+        this.gyroGraph?.addPoint(data.gyro);
     }
 
     private animate() {

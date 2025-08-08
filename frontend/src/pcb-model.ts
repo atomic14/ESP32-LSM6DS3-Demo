@@ -9,6 +9,8 @@ export class PCBModel {
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
+        // Start with identity orientation
+        this.quaternion.identity();
     }
 
     async load(modelPath: string) {
@@ -204,7 +206,8 @@ export class PCBModel {
         this.applyRotationToModel();
     }
 
-    updateOrientation(accel: { x: number; y: number; z: number }) {
+    // Absolute orientation from accelerometer tilt (pitch/roll)
+    updateOrientationFromAccel(accel: { x: number; y: number; z: number }) {
         if (!this.model) return;
 
         // Calculate pitch and roll from accelerometer data
@@ -222,6 +225,37 @@ export class PCBModel {
         this.applyRotationToModel();
     }
 
+    // Incremental orientation update by integrating gyro rates over dt (seconds)
+    updateOrientationFromGyro(gyroDegPerSec: { x: number; y: number; z: number }, dtSeconds: number) {
+        if (!this.model) return;
+        if (dtSeconds <= 0 || !isFinite(dtSeconds)) return;
+
+        // Convert degrees/sec to radians/sec
+        const gx = gyroDegPerSec.x * Math.PI / 180;
+        const gy = gyroDegPerSec.y * Math.PI / 180;
+        const gz = gyroDegPerSec.z * Math.PI / 180;
+
+        // Angular rate magnitude
+        const omegaMagnitude = Math.sqrt(gx * gx + gy * gy + gz * gz);
+        if (omegaMagnitude === 0) {
+            return; // no rotation needed
+        }
+
+        // Rotation over dt: axis = omega/|omega|, angle = |omega| * dt
+        const angle = omegaMagnitude * dtSeconds;
+        const axisX = gx / omegaMagnitude;
+        const axisY = gy / omegaMagnitude;
+        const axisZ = gz / omegaMagnitude;
+
+        const deltaQuaternion = new THREE.Quaternion();
+        deltaQuaternion.setFromAxisAngle(new THREE.Vector3(axisX, axisZ, -axisY), angle);
+
+        // Directly apply integrated rotation without smoothing for gyro mode
+        this.quaternion.multiply(deltaQuaternion).normalize();
+
+        this.applyRotationToModel();
+    }
+
     setSmoothingFactor(factor: number) {
         // Factor between 0 (no smoothing) and 1 (heavy smoothing)
         this.smoothingFactor = Math.max(0, Math.min(1, factor));
@@ -230,6 +264,11 @@ export class PCBModel {
 
     getModel(): THREE.Group | null {
         return this.model;
+    }
+
+    resetOrientation() {
+        this.quaternion.identity();
+        this.applyRotationToModel();
     }
 
     private applyRotationToModel() {

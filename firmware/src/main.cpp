@@ -69,7 +69,4 @@ void loop() {
 
   // Emit one JSON object per line for the frontend to parse
   printSensorJson(accelX, accelY, accelZ, gyroX, gyroY, gyroZ, temperatureC);
-
-  // 100 Hz
-  delay(10);
 }

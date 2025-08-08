@@ -145,6 +145,21 @@
             </div>
             
             <div class="control-group">
+                <h3>Orientation Mode</h3>
+                <div class="data-display" style="display:flex; gap:12px; align-items:center; margin-top:6px;">
+                    <label style="display:flex; align-items:center; gap:6px;">
+                        <input type="radio" name="mode" id="mode-accel" checked>
+                        <span>Accelerometer (abs)</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px;">
+                        <input type="radio" name="mode" id="mode-gyro">
+                        <span>Gyro (integrated)</span>
+                    </label>
+                    <button id="reset-orientation" style="margin-left: 8px;">Reset</button>
+                </div>
+            </div>
+
+            <div class="control-group" id="smoothing-group">
                 <h3>Smoothing</h3>
                 <div style="margin-top: 10px;">
                     <label for="smoothing-slider" style="font-size: 12px; color: #ccc;">Smoothing:</label>
@@ -166,6 +181,7 @@
             </div>
         </div>
         <canvas id="accel-graph"></canvas>
+        <canvas id="gyro-graph" style="position: absolute; right: 20px; bottom: 180px; width: 360px; height: 140px; z-index: 90; border-radius: 8px; overflow: hidden; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4);"></canvas>
     </div>
     
     <script type="module" src="/src/main.ts"></script>
