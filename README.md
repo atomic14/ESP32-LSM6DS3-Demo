@@ -73,7 +73,6 @@ npm run dev         # Start development server
 ### Frontend
 - **WebSerial Integration**: Direct browser-to-device communication
 - **3D PCB Model**: GLB file support with automatic scaling
-- **Orientation Calibration**: Set reference position (flat table = 0,0,0)
 - **Adjustable Smoothing**: Fine-tune responsiveness vs stability
 - **Professional Lighting**: Specular reflections and realistic materials
 - **Mouse Controls**: Orbit camera, zoom, and inspect the model
