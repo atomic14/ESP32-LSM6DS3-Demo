@@ -5,15 +5,10 @@ export class PCBModel {
     private scene: THREE.Scene;
     private model: THREE.Group | null = null;
     private quaternion = new THREE.Quaternion();
-    private referenceQuaternion = new THREE.Quaternion();
-    private baseRotation = new THREE.Quaternion(); // 90° CW rotation offset
-    private isCalibrated = false;
     private smoothingFactor = 0.1; // For exponential smoothing
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
-        // Set up 90-degree clockwise rotation offset
-        this.baseRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
     }
 
     async load(modelPath: string) {
@@ -121,7 +116,7 @@ export class PCBModel {
                     // Add to scene
                     this.scene.add(this.model);
                     console.log(`GLB file loaded successfully - scaled by ${scaleFactor}x`);
-                    // Apply current base + current quaternion so it is visible even before data
+                    // Apply current quaternion so it is visible even before data
                     this.applyRotationToModel();
                     resolve();
                 },
@@ -202,22 +197,7 @@ export class PCBModel {
         this.model.add(axesHelper);
 
         this.scene.add(this.model);
-        // Apply current base + current quaternion so it is visible even before data
-        this.applyRotationToModel();
-    }
-
-
-    calibrateReference(accel: { x: number; y: number; z: number }) {
-        // Set reference orientation based on current accelerometer reading
-        const pitch = Math.atan2(accel.y, Math.sqrt(accel.x * accel.x + accel.z * accel.z));
-        const roll = Math.atan2(accel.x, accel.z);
-        
-        const euler = new THREE.Euler(pitch, 0, roll, 'XYZ');
-        this.referenceQuaternion.setFromEuler(euler);
-        this.quaternion.copy(this.referenceQuaternion);
-        this.isCalibrated = true;
-        
-        console.log('PCB orientation calibrated - reference set');
+        // Apply current quaternion so it is visible even before data
         this.applyRotationToModel();
     }
 
@@ -232,27 +212,10 @@ export class PCBModel {
         const targetQuaternion = new THREE.Quaternion();
         targetQuaternion.setFromEuler(new THREE.Euler(pitch, 0, roll, 'XYZ'));
         
-        if (!this.isCalibrated) {
-            // Without calibration, show absolute orientation with smoothing
-            this.quaternion.slerp(targetQuaternion, this.smoothingFactor);
-        } else {
-            // With calibration, show relative to reference orientation
-            const relativeQuaternion = new THREE.Quaternion();
-            relativeQuaternion.multiplyQuaternions(targetQuaternion, this.referenceQuaternion.clone().invert());
-            
-            // Apply smoothing
-            this.quaternion.slerp(relativeQuaternion, this.smoothingFactor);
-        }
+        // Smoothly interpolate toward the absolute target orientation
+        this.quaternion.slerp(targetQuaternion, this.smoothingFactor);
 
-        // Apply rotation to model with base rotation offset
-        this.applyRotationToModel();
-    }
-
-    resetOrientation() {
-        this.quaternion.set(0, 0, 0, 1);
-        this.referenceQuaternion.set(0, 0, 0, 1);
-        this.isCalibrated = false;
-        console.log('PCB orientation reset');
+        // Apply rotation to model
         this.applyRotationToModel();
     }
 
@@ -266,35 +229,9 @@ export class PCBModel {
         return this.model;
     }
 
-    /**
-     * Sets the static base rotation (model alignment) in degrees for X/Y/Z.
-     * Positive angles follow Three.js convention and Euler order 'XYZ'.
-     */
-    setBaseRotationDegrees(xDeg: number, yDeg: number, zDeg: number) {
-        const xRad = (xDeg * Math.PI) / 180;
-        const yRad = (yDeg * Math.PI) / 180;
-        const zRad = (zDeg * Math.PI) / 180;
-        const euler = new THREE.Euler(xRad, yRad, zRad, 'XYZ');
-        this.baseRotation.setFromEuler(euler);
-        console.log(`Base rotation set to (deg): X=${xDeg.toFixed(1)} Y=${yDeg.toFixed(1)} Z=${zDeg.toFixed(1)}`);
-        this.applyRotationToModel();
-    }
-
-    /** Returns the current base rotation as degrees for X/Y/Z. */
-    getBaseRotationDegrees(): { x: number; y: number; z: number } {
-        const euler = new THREE.Euler().setFromQuaternion(this.baseRotation, 'XYZ');
-        return {
-            x: (euler.x * 180) / Math.PI,
-            y: (euler.y * 180) / Math.PI,
-            z: (euler.z * 180) / Math.PI,
-        };
-    }
-
     private applyRotationToModel() {
         if (!this.model) return;
-        const finalQuaternion = new THREE.Quaternion();
-        finalQuaternion.multiplyQuaternions(this.baseRotation, this.quaternion);
-        this.model.quaternion.copy(finalQuaternion);
+        this.model.quaternion.copy(this.quaternion);
     }
 
     private disposeObject3D(object: THREE.Object3D) {

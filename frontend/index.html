@@ -145,30 +145,12 @@
             </div>
             
             <div class="control-group">
-                <h3>Orientation Control</h3>
-                <button id="calibrate-btn" disabled>Calibrate (Set Reference)</button>
-                <button id="reset-btn">Reset Orientation</button>
-                <div style="font-size: 11px; color: #aaa; margin-top: 5px;">
-                    Place board flat on table, then click Calibrate
-                </div>
+                <h3>Smoothing</h3>
                 <div style="margin-top: 10px;">
                     <label for="smoothing-slider" style="font-size: 12px; color: #ccc;">Smoothing:</label>
                     <input type="range" id="smoothing-slider" min="0" max="50" value="10" style="width: 100px; margin-left: 5px;">
                     <span id="smoothing-value" style="font-size: 11px; color: #aaa;">0.1</span>
                 </div>
-                 <div style="margin-top: 10px; display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: center;">
-                     <label for="base-rot-x" style="font-size: 12px; color: #ccc;">Base Rot X</label>
-                     <input type="range" id="base-rot-x" min="-180" max="180" step="90" value="0">
-                     <span id="base-rot-x-value" style="font-size: 11px; color: #aaa; width: 42px; text-align: right;">0°</span>
-
-                     <label for="base-rot-y" style="font-size: 12px; color: #ccc;">Base Rot Y</label>
-                     <input type="range" id="base-rot-y" min="-180" max="180" step="90" value="90">
-                     <span id="base-rot-y-value" style="font-size: 11px; color: #aaa; width: 42px; text-align: right;">90°</span>
-
-                     <label for="base-rot-z" style="font-size: 12px; color: #ccc;">Base Rot Z</label>
-                     <input type="range" id="base-rot-z" min="-180" max="180" step="90" value="0">
-                     <span id="base-rot-z-value" style="font-size: 11px; color: #aaa; width: 42px; text-align: right;">0°</span>
-                 </div>
             </div>
             
             <div class="control-group">

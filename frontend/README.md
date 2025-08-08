@@ -45,11 +45,6 @@ A real-time 3D visualization web application for ESP32S3 accelerometer data usin
 - **Connect Button**: Establishes WebSerial connection to ESP32S3
 - **Status Indicator**: Shows connection state (Connected/Disconnected)
 
-### Orientation Control
-- **Calibrate Button**: Sets current position as reference (0,0,0)
-- **Reset Button**: Resets to identity orientation
-- **Smoothing Slider**: Adjusts filtering (0-50%, default 10%)
-
 ### 3D Visualization
 - **Mouse Drag**: Rotate camera around PCB
 - **Mouse Wheel**: Zoom in/out
