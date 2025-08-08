@@ -116,8 +116,9 @@ export class SceneManager {
         let isMouseDown = false;
         let mouseX = 0;
         let mouseY = 0;
-        let targetX = 0;
-        let targetY = 0;
+        // Start with camera on +Z axis looking toward origin so world X runs left→right on screen
+        let targetX = Math.PI / 2;
+        let targetY = 0.35; // slight elevation
 
         this.renderer.domElement.addEventListener('mousedown', (event) => {
             isMouseDown = true;
