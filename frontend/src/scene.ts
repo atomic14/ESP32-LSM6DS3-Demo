@@ -45,10 +45,6 @@ export class SceneManager {
         // Add lights
         this.setupLighting();
 
-        // Add coordinate axes helper
-        // const axesHelper = new THREE.AxesHelper(5);
-        // this.scene.add(axesHelper);
-
         // Add grid - smaller grid for PCB scale
         const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x444444);
         this.scene.add(gridHelper);
