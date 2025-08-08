@@ -1,9 +1,9 @@
 [![Firmware CI](https://github.com/atomic14/ESP32-LSM6DS3-Demo/actions/workflows/firmware.yml/badge.svg)](https://github.com/atomic14/ESP32-LSM6DS3-Demo/actions/workflows/firmware.yml)
 [![Frontend CI](https://github.com/atomic14/ESP32-LSM6DS3-Demo/actions/workflows/frontend.yml/badge.svg)](https://github.com/atomic14/ESP32-LSM6DS3-Demo/actions/workflows/frontend.yml)
 
-# ESP32S3 Accelerometer Demo
+# ESP32S3 IMU (Accelerometer + Gyroscope) Demo
 
-A complete hardware + software solution for real-time 3D accelerometer visualization. This project combines an ESP32S3 microcontroller with LSM6DS3 accelerometer and a sophisticated web-based 3D visualization frontend.
+A complete hardware + software solution for real-time 3D IMU visualization. This project combines an ESP32S3 microcontroller with the LSM6DS3 accelerometer/gyroscope and a web-based 3D visualization frontend.
 
 ![Demo](images/demo.png)
 
@@ -60,8 +60,11 @@ npm run dev         # Start development server
 1. Open `http://localhost:5173` in Chrome/Edge
 2. Click "Connect to ESP32S3"
 3. Select ESP32S3 serial port
-4. Place PCB flat and click "Calibrate"
-5. Tilt the PCB to see real-time 3D visualization
+4. Choose an orientation mode:
+   - `Accelerometer (abs)`: absolute tilt (pitch/roll) with optional smoothing
+   - `Gyro (integrated)`: integrates angular rate to track orientation (no smoothing)
+5. Use the `Reset` button to zero orientation if needed
+6. Tilt/rotate the PCB to see real-time 3D visualization
 
 ## Features
 
@@ -74,13 +77,15 @@ npm run dev         # Start development server
 ### Frontend
 - **WebSerial Integration**: Direct browser-to-device communication
 - **3D PCB Model**: GLB file support with automatic scaling
-- **Adjustable Smoothing**: Fine-tune responsiveness vs stability
+- **Orientation Modes**: Accelerometer (absolute tilt) or Gyro (integrated)
+- **Adjustable Smoothing (Accel only)**: Fine-tune responsiveness vs stability
+- **Dual Charts**: Live accelerometer and gyroscope charts with titles and right-aligned legends
 - **Professional Lighting**: Specular reflections and realistic materials
 - **Mouse Controls**: Orbit camera, zoom, and inspect the model
 
 ## Data Format
 
-The firmware outputs JSON at 10Hz:
+The firmware outputs JSON at 10Hz (example):
 ```json
 {"accel":{"x":0.123,"y":0.456,"z":0.789},"gyro":{"x":1.23,"y":4.56,"z":7.89},"temp":25.4}
 ```
@@ -131,7 +136,7 @@ npm run lint             # Code linting
 - **Gyroscope Range**: ±125°/s, ±250°/s, ±500°/s, ±1000°/s, ±2000°/s
 - **I2C Speed**: 100kHz for reliable communication
 - **Serial Baud Rate**: 115200 for fast data transfer
-- **Update Rate**: 10Hz (100ms intervals)
+- **Update Rate**: 10Hz (100ms intervals) by default (adjustable in firmware)
 
 ## License
 
