@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <LSM6DS3.h>
+#include "Fusion.h"
 
 // Hardware constants
 #define I2C_SDA 7
@@ -16,9 +17,14 @@
 // Sensor instance (I2C)
 LSM6DS3 imu(I2C_MODE, LSM6DS3_I2C_ADDR);
 
+// Fusion AHRS
+static FusionAhrs g_ahrs;
+static uint32_t g_lastUpdateMicros = 0;
+
 static inline void printSensorJson(float ax, float ay, float az,
                                    float gx, float gy, float gz,
-                                   float temperatureC) {
+                                   float temperatureC,
+                                   float rollDeg, float pitchDeg, float yawDeg) {
   Serial.print("{\"accel\":{\"x\":");
   Serial.print(ax, 3);
   Serial.print(",\"y\":");
@@ -33,7 +39,13 @@ static inline void printSensorJson(float ax, float ay, float az,
   Serial.print(gz, 2);
   Serial.print("},\"temp\":");
   Serial.print(temperatureC, 1);
-  Serial.println("}");
+  Serial.print(",\"euler\":{\"roll\":");
+  Serial.print(rollDeg, 1);
+  Serial.print(",\"pitch\":");
+  Serial.print(pitchDeg, 1);
+  Serial.print(",\"yaw\":");
+  Serial.print(yawDeg, 1);
+  Serial.println("}}");
 }
 
 void setup() {
@@ -52,6 +64,20 @@ void setup() {
     }
   }
 
+  // Initialise Fusion AHRS
+  FusionAhrsInitialise(&g_ahrs);
+  const FusionAhrsSettings settings = {
+      .convention = FusionConventionNwu,
+      .gain = 0.5f,
+      .gyroscopeRange = 2000.0f,           // deg/s (set to your gyro full-scale)
+      .accelerationRejection = 10.0f,      // degrees
+      .magneticRejection = 0.0f,           // no magnetometer in use
+      .recoveryTriggerPeriod = 500u        // samples (about ~5 s @ 100 Hz)
+  };
+  FusionAhrsSetSettings(&g_ahrs, &settings);
+
+  g_lastUpdateMicros = micros();
+
   delay(100);
 }
 
@@ -67,6 +93,31 @@ void loop() {
 
   const float temperatureC = imu.readTempC();
 
+  // Delta time for AHRS update (seconds)
+  const uint32_t now = micros();
+  float deltaTime = (now - g_lastUpdateMicros) / 1e6f;
+  g_lastUpdateMicros = now;
+  if (deltaTime <= 0.0f || deltaTime > 0.1f) {
+    // Guard against unreasonable dt (e.g., on startup or USB stall)
+    deltaTime = 0.01f;
+  }
+
+  // Update AHRS (no magnetometer)
+  FusionVector gyroscope;      // deg/s
+  gyroscope.axis.x = gyroX;
+  gyroscope.axis.y = gyroY;
+  gyroscope.axis.z = gyroZ;
+
+  FusionVector accelerometer;  // g
+  accelerometer.axis.x = accelX;
+  accelerometer.axis.y = accelY;
+  accelerometer.axis.z = accelZ;
+
+  FusionAhrsUpdateNoMagnetometer(&g_ahrs, gyroscope, accelerometer, deltaTime);
+
+  const FusionEuler euler = FusionQuaternionToEuler(FusionAhrsGetQuaternion(&g_ahrs));
+
   // Emit one JSON object per line for the frontend to parse
-  printSensorJson(accelX, accelY, accelZ, gyroX, gyroY, gyroZ, temperatureC);
+  printSensorJson(accelX, accelY, accelZ, gyroX, gyroY, gyroZ, temperatureC,
+                  euler.angle.roll, euler.angle.pitch, euler.angle.yaw);
 }

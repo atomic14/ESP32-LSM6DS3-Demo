@@ -1,0 +1,3 @@
+[submodule "firmware/_third_party/Fusion"]
+	path = firmware/_third_party/Fusion
+	url = https://github.com/xioTechnologies/Fusion

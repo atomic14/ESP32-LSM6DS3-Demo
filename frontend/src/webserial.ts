@@ -2,6 +2,7 @@ export interface SensorData {
     accel: { x: number; y: number; z: number };
     gyro: { x: number; y: number; z: number };
     temperature: number;
+    euler?: { roll: number; pitch: number; yaw: number };
 }
 
 interface WebSerialEvents {
@@ -143,7 +144,8 @@ export class WebSerialManager {
                         y: jsonData.gyro.y,
                         z: jsonData.gyro.z
                     },
-                    temperature: jsonData.temp
+                    temperature: jsonData.temp,
+                    euler: jsonData.euler
                 };
 
                 this.emit('data', sensorData);
