@@ -5,6 +5,8 @@
 
 A complete hardware + software solution for real-time 3D IMU visualization. This project combines an ESP32S3 microcontroller with the LSM6DS3 accelerometer/gyroscope and a web-based 3D visualization frontend.
 
+If you find this project useful, please consider [supporting me on Patreon](https://www.patreon.com/atomic14).
+
 ![Demo](images/demo.png)
 
 Demo site: https://lsm6ds3.atomic14.com/
