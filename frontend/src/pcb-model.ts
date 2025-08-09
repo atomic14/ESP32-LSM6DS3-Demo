@@ -6,6 +6,9 @@ export class PCBModel {
     private model: THREE.Group | null = null;
     private quaternion = new THREE.Quaternion();
     private smoothingFactor = 0.1; // For exponential smoothing
+    // Fixed basis transform mapping sensor frame (Xs, Ys, Zs) to Three.js model frame (Xm, Ym, Zm)
+    // Mapping used throughout: Xm = Xs, Ym = Zs, Zm = -Ys  => rotation Rx(-90°)
+    private sensorToModel = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
@@ -259,15 +262,34 @@ export class PCBModel {
     // Absolute orientation from Fusion Euler angles (degrees)
     updateOrientationFromFusionEuler(eulerDeg: { roll: number; pitch: number; yaw: number }) {
         if (!this.model) return;
-        const rollRad = eulerDeg.roll * Math.PI / 180;
-        const pitchRad = eulerDeg.pitch * Math.PI / 180;
-        const yawRad = eulerDeg.yaw * Math.PI / 180;
-        const targetQuaternion = new THREE.Quaternion();
-        // Fusion uses ZYX Euler (roll=X, pitch=Y, yaw=Z) in degrees
-        targetQuaternion.setFromEuler(new THREE.Euler(rollRad, pitchRad, yawRad, 'XYZ'));
-        this.quaternion.slerp(targetQuaternion, this.smoothingFactor);
+        // Unwrap angles to avoid sudden flips at ±180° boundaries
+        const rollDeg = this.unwrapToPrev(eulerDeg.roll, this.prevEuler?.roll ?? eulerDeg.roll);
+        const pitchDeg = this.unwrapToPrev(eulerDeg.pitch, this.prevEuler?.pitch ?? eulerDeg.pitch);
+        const yawDeg = this.unwrapToPrev(eulerDeg.yaw, this.prevEuler?.yaw ?? eulerDeg.yaw);
+
+        // Reconstruct sensor quaternion using the same Euler convention as the library (ZYX)
+        const qSensor = new THREE.Quaternion().setFromEuler(
+            new THREE.Euler(this.degToRad(rollDeg), this.degToRad(pitchDeg), this.degToRad(yawDeg), 'ZYX')
+        );
+
+        // Map sensor quaternion into model frame via conjugation by the fixed basis transform Rx(-90°)
+        const qTarget = this.sensorToModel.clone().multiply(qSensor).multiply(this.sensorToModel.clone().invert());
+
+        // Smoothly interpolate toward target
+        this.quaternion.slerp(qTarget, this.smoothingFactor);
         this.applyRotationToModel();
+        this.prevEuler = { roll: rollDeg, pitch: pitchDeg, yaw: yawDeg };
     }
+
+    private prevEuler: { roll: number; pitch: number; yaw: number } | null = null;
+    private unwrapToPrev(currentDeg: number, prevDeg: number): number {
+        let delta = currentDeg - prevDeg;
+        if (delta > 180) currentDeg -= 360;
+        else if (delta < -180) currentDeg += 360;
+        return currentDeg;
+    }
+    private degToRad(d: number) { return d * Math.PI / 180; }
+    // radToDeg no longer used; keep degToRad only
 
     setSmoothingFactor(factor: number) {
         // Factor between 0 (no smoothing) and 1 (heavy smoothing)

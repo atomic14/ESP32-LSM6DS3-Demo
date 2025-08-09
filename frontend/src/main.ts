@@ -19,6 +19,7 @@ class AccelerometerApp {
     private accelGraph: AccelGraph | null = null;
     private gyroGraph: AccelGraph | null = null;
     private fusionGraph: AccelGraph | null = null;
+    private lastFusionEuler: { roll: number; pitch: number; yaw: number } | null = null;
 
     // Orientation mode state
     private mode: 'accel' | 'gyro' | 'fusion' = 'accel';
@@ -165,6 +166,7 @@ class AccelerometerApp {
             this.accelGraph?.clear();
             this.gyroGraph?.clear();
             this.fusionGraph?.clear();
+            this.lastFusionEuler = null;
             // Avoid large integration step on next connect
             this.lastTimestampMs = null;
         });
@@ -247,18 +249,44 @@ class AccelerometerApp {
         this.accelGraph?.addPoint(data.accel);
         this.gyroGraph?.addPoint(data.gyro);
         if (data.euler) {
-            this.fusionGraph?.addPoint({ x: data.euler.roll, y: data.euler.pitch, z: data.euler.yaw });
+            let r = data.euler.roll;
+            let p = data.euler.pitch;
+            let y = data.euler.yaw;
+            if (this.lastFusionEuler) {
+                r = this.unwrapToPrev(r, this.lastFusionEuler.roll);
+                p = this.unwrapToPrev(p, this.lastFusionEuler.pitch);
+                y = this.unwrapToPrev(y, this.lastFusionEuler.yaw);
+            }
+            this.lastFusionEuler = { roll: r, pitch: p, yaw: y };
+            // Graph expects values within [-180, 180); normalize so X/Z are not pegged at range limits
+            const gr = this.normalize180(r);
+            const gp = this.normalize180(p);
+            const gy = this.normalize180(y);
+            this.fusionGraph?.addPoint({ x: gr, y: gp, z: gy });
         }
 
-        // Update Fusion text values if present
+        // Update Fusion text values if present (display wrapped to [-180, 180))
         const fr = document.getElementById('fusion-roll');
         const fp = document.getElementById('fusion-pitch');
         const fy = document.getElementById('fusion-yaw');
-        if (data.euler && fr && fp && fy) {
-            fr.textContent = data.euler.roll.toFixed(1);
-            fp.textContent = data.euler.pitch.toFixed(1);
-            fy.textContent = data.euler.yaw.toFixed(1);
+        if (this.lastFusionEuler && fr && fp && fy) {
+            fr.textContent = this.normalize180(this.lastFusionEuler.roll).toFixed(1);
+            fp.textContent = this.normalize180(this.lastFusionEuler.pitch).toFixed(1);
+            fy.textContent = this.normalize180(this.lastFusionEuler.yaw).toFixed(1);
         }
+    }
+
+    // Ensure angle follows previous sample branch to avoid ±180° wrap flips
+    private unwrapToPrev(currentDeg: number, prevDeg: number): number {
+        let delta = currentDeg - prevDeg;
+        if (delta > 180) currentDeg -= 360;
+        else if (delta < -180) currentDeg += 360;
+        return currentDeg;
+    }
+
+    private normalize180(deg: number): number {
+        const x = (deg + 180) % 360;
+        return x < 0 ? x + 360 - 180 : x - 180;
     }
 
     private animate() {

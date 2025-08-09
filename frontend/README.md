@@ -93,6 +93,7 @@ npm run lint
 - **Vite**: Build tool and dev server
 - **WebSerial API**: Direct browser-to-device communication
 - **GLTFLoader**: 3D model loading
+ - **Sensor Fusion (AHRS)**: Orientation from the embedded firmware uses the Fusion library by xioTechnologies: [xioTechnologies/Fusion](https://github.com/xioTechnologies/Fusion/tree/main)
 
 ## Project Structure
 

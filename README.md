@@ -138,6 +138,11 @@ npm run lint             # Code linting
 - **Serial Baud Rate**: 115200 for fast data transfer
 - **Update Rate**: 10Hz (100ms intervals) by default (adjustable in firmware)
 
+## Sensor Fusion (AHRS)
+
+- Orientation fusion is provided by the xioTechnologies Fusion AHRS library. See the repository for details: [xioTechnologies/Fusion](https://github.com/xioTechnologies/Fusion/tree/main).
+- Configuration: NWU earth-frame convention; Euler angles extracted using ZYX order; magnetometer disabled in this project.
+
 ## License
 
 This project is open source. See individual component licenses for details.

@@ -19,6 +19,8 @@ LSM6DS3 imu(I2C_MODE, LSM6DS3_I2C_ADDR);
 
 // Fusion AHRS
 static FusionAhrs g_ahrs;
+static FusionOffset offset;
+
 static uint32_t g_lastUpdateMicros = 0;
 
 static inline void printSensorJson(float ax, float ay, float az,
@@ -76,6 +78,9 @@ void setup() {
   };
   FusionAhrsSetSettings(&g_ahrs, &settings);
 
+  // TODO - what is the actual sample rate?
+  FusionOffsetInitialise(&offset, 100);
+
   g_lastUpdateMicros = micros();
 
   delay(100);
@@ -107,6 +112,10 @@ void loop() {
   gyroscope.axis.x = gyroX;
   gyroscope.axis.y = gyroY;
   gyroscope.axis.z = gyroZ;
+
+
+  // Update gyroscope offset correction algorithm
+  gyroscope = FusionOffsetUpdate(&offset, gyroscope);
 
   FusionVector accelerometer;  // g
   accelerometer.axis.x = accelX;
