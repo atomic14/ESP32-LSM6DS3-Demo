@@ -81,8 +81,8 @@ void setup() {
   };
   FusionAhrsSetSettings(&g_ahrs, &settings);
 
-  // TODO - what is the actual sample rate - it's probably something around this
-  FusionOffsetInitialise(&offset, 100);
+  // you can look in the frontend to see the actual sample rate that messages are sent at
+  FusionOffsetInitialise(&offset, 300);
 
   g_lastUpdateMicros = micros();
 

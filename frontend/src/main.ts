@@ -29,6 +29,8 @@ class AccelerometerApp {
     private modeGyroRadio!: HTMLInputElement;
     private modeFusionRadio!: HTMLInputElement;
     private smoothingGroupEl!: HTMLElement;
+    private msgRateEl!: HTMLElement;
+    private msgTimestamps: number[] = [];
 
     constructor() {
         this.serialManager = new WebSerialManager();
@@ -36,6 +38,7 @@ class AccelerometerApp {
         
         this.connectBtn = document.getElementById('connect-btn') as HTMLButtonElement;
         this.statusEl = document.getElementById('connection-status') as HTMLElement;
+        this.msgRateEl = document.getElementById('message-rate') as HTMLElement;
         
         this.smoothingSlider = document.getElementById('smoothing-slider') as HTMLInputElement;
         this.smoothingValueSpan = document.getElementById('smoothing-value') as HTMLSpanElement;
@@ -157,6 +160,9 @@ class AccelerometerApp {
             this.statusEl.textContent = 'Connected';
             this.statusEl.className = 'status connected';
             this.connectBtn.textContent = 'Disconnect';
+            // Reset message rate window on new connection
+            this.msgTimestamps = [];
+            if (this.msgRateEl) this.msgRateEl.textContent = 'Msgs/s: 0';
             
         });
         
@@ -164,6 +170,9 @@ class AccelerometerApp {
             this.statusEl.textContent = 'Disconnected';
             this.statusEl.className = 'status disconnected';
             this.connectBtn.textContent = 'Connect to ESP32S3';
+            // Clear message rate on disconnect
+            this.msgTimestamps = [];
+            if (this.msgRateEl) this.msgRateEl.textContent = 'Msgs/s: 0';
             
             this.accelGraph?.clear();
             this.gyroGraph?.clear();
@@ -223,6 +232,18 @@ class AccelerometerApp {
     }
 
     private handleSensorData(data: SensorData) {
+        // Update message rate using a 1s sliding window
+        const now = performance.now();
+        this.msgTimestamps.push(now);
+        const oneSecondAgo = now - 1000;
+        // Remove old timestamps
+        while (this.msgTimestamps.length && this.msgTimestamps[0] < oneSecondAgo) {
+            this.msgTimestamps.shift();
+        }
+        if (this.msgRateEl) {
+            this.msgRateEl.textContent = `Msgs/s: ${this.msgTimestamps.length.toString()}`;
+        }
+
         // Update UI elements
         document.getElementById('accel-x')!.textContent = data.accel.x.toFixed(3);
         document.getElementById('accel-y')!.textContent = data.accel.y.toFixed(3);
