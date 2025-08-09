@@ -70,24 +70,23 @@ npm run dev         # Start development server
 ## Features
 
 ### Hardware
-- **I2C Communication**: LSM6DS3 at address 0x6B
-- **10Hz Data Rate**: Smooth real-time updates
-- **JSON Output**: Clean, parseable data format
-- **Auto-detection**: I2C device scanning and sensor initialization
+- **I2C Communication**: LSM6DS3 accelerometer/gyroscope
+- **JSON Output**: Clean, parseable data format output over serial
 
 ### Frontend
 - **WebSerial Integration**: Direct browser-to-device communication
-- **3D PCB Model**: GLB file support with automatic scaling
-- **Orientation Modes**: Accelerometer (absolute tilt) or Gyro (integrated)
+- **3D PCB Model**: GLB file support with automatic scaling - you can load your own model as well
+- **Orientation Modes**: Accelerometer (absolute tilt) or Gyro (integrated) or Fusion (AHRS)
 - **Adjustable Smoothing (Accel only)**: Fine-tune responsiveness vs stability
-- **Dual Charts**: Live accelerometer and gyroscope charts with titles and right-aligned legends
-- **Professional Lighting**: Specular reflections and realistic materials
+- **Charts**: Live accelerometer and gyroscope charts with titles and right-aligned legends
+- **Lighting**: Specular reflections and realistic materials
 - **Mouse Controls**: Orbit camera, zoom, and inspect the model
 
 ## Data Format
 
-The firmware outputs JSON at 10Hz (example):
-```jsonc
+The firmware outputs JSON (example):
+
+```json
 {
   // Accelerometer data in g
   "accel": { "x": 0.123, "y": 0.456, "z": 0.789 },
