@@ -97,7 +97,7 @@ class AccelerometerApp {
         // Mode radio buttons
         this.modeAccelRadio = document.getElementById('mode-accel') as HTMLInputElement;
         this.modeGyroRadio = document.getElementById('mode-gyro') as HTMLInputElement;
-        this.resetGyroBtn = document.getElementById('reset-gyro') as HTMLButtonElement | null;
+        this.resetGyroBtn = document.getElementById('reset-gyro') as HTMLButtonElement;
         this.smoothingGroupEl = document.getElementById('smoothing-group') as HTMLElement;
         
         if (this.modeAccelRadio) {
