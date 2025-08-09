@@ -21,11 +21,12 @@ class AccelerometerApp {
     private fusionGraph: AccelGraph | null = null;
 
     // Orientation mode state
-    private mode: 'accel' | 'gyro' = 'accel';
+    private mode: 'accel' | 'gyro' | 'fusion' = 'accel';
     private lastTimestampMs: number | null = null;
     private resetBtn!: HTMLButtonElement;
     private modeAccelRadio!: HTMLInputElement;
     private modeGyroRadio!: HTMLInputElement;
+    private modeFusionRadio!: HTMLInputElement;
     private smoothingGroupEl!: HTMLElement;
 
     constructor() {
@@ -119,6 +120,18 @@ class AccelerometerApp {
                     // Disable smoothing UI in gyro mode
                     this.smoothingSlider.disabled = true;
                     if (this.smoothingGroupEl) this.smoothingGroupEl.style.opacity = '0.5';
+                }
+            });
+        }
+        this.modeFusionRadio = document.getElementById('mode-fusion') as HTMLInputElement;
+        if (this.modeFusionRadio) {
+            this.modeFusionRadio.addEventListener('change', () => {
+                if (this.modeFusionRadio.checked) {
+                    this.mode = 'fusion';
+                    // Enable smoothing for fusion as well (we slerp toward target)
+                    this.smoothingSlider.disabled = false;
+                    if (this.smoothingGroupEl) this.smoothingGroupEl.style.opacity = '1';
+                    this.handleSmoothingChange();
                 }
             });
         }
@@ -218,11 +231,15 @@ class AccelerometerApp {
                 this.pcbModel.updateOrientationFromAccel(data.accel);
                 // Reset dt anchor so switching back to gyro doesn't integrate a large gap
                 this.lastTimestampMs = performance.now();
-            } else {
+            } else if (this.mode === 'gyro') {
                 const now = performance.now();
                 const dt = this.lastTimestampMs == null ? 0 : (now - this.lastTimestampMs) / 1000;
                 this.lastTimestampMs = now;
                 this.pcbModel.updateOrientationFromGyro(data.gyro, dt);
+            } else if (this.mode === 'fusion') {
+                if (data.euler) {
+                    this.pcbModel.updateOrientationFromFusionEuler(data.euler);
+                }
             }
         }
 

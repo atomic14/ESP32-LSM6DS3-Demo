@@ -146,7 +146,7 @@
             
             <div class="control-group">
                 <h3>Orientation Mode</h3>
-                <div class="data-display" style="display:flex; gap:12px; align-items:center; margin-top:6px;">
+                <div class="data-display" style="display:flex; gap:12px; align-items:center; margin-top:6px; flex-wrap: wrap;">
                     <label style="display:flex; align-items:center; gap:6px;">
                         <input type="radio" name="mode" id="mode-accel" checked>
                         <span>Accelerometer (abs)</span>
@@ -154,6 +154,10 @@
                     <label style="display:flex; align-items:center; gap:6px;">
                         <input type="radio" name="mode" id="mode-gyro">
                         <span>Gyro (integrated)</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px;">
+                        <input type="radio" name="mode" id="mode-fusion">
+                        <span>Fusion (AHRS)</span>
                     </label>
                     <button id="reset-orientation" style="margin-left: 8px;">Reset</button>
                 </div>

@@ -256,6 +256,19 @@ export class PCBModel {
         this.applyRotationToModel();
     }
 
+    // Absolute orientation from Fusion Euler angles (degrees)
+    updateOrientationFromFusionEuler(eulerDeg: { roll: number; pitch: number; yaw: number }) {
+        if (!this.model) return;
+        const rollRad = eulerDeg.roll * Math.PI / 180;
+        const pitchRad = eulerDeg.pitch * Math.PI / 180;
+        const yawRad = eulerDeg.yaw * Math.PI / 180;
+        const targetQuaternion = new THREE.Quaternion();
+        // Fusion uses ZYX Euler (roll=X, pitch=Y, yaw=Z) in degrees
+        targetQuaternion.setFromEuler(new THREE.Euler(rollRad, pitchRad, yawRad, 'XYZ'));
+        this.quaternion.slerp(targetQuaternion, this.smoothingFactor);
+        this.applyRotationToModel();
+    }
+
     setSmoothingFactor(factor: number) {
         // Factor between 0 (no smoothing) and 1 (heavy smoothing)
         this.smoothingFactor = Math.max(0, Math.min(1, factor));
