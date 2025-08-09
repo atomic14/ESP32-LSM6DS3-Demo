@@ -10,9 +10,10 @@
 // Hardware constants
 #define I2C_SDA 7
 #define I2C_SCL 15
+#define LSM6DS3_I2C_ADDR 0x6B
+
 #define I2C_FREQUENCY_HZ 400000
 #define SERIAL_BAUD 115200
-#define LSM6DS3_I2C_ADDR 0x6B
 
 // Sensor instance (I2C)
 LSM6DS3 imu(I2C_MODE, LSM6DS3_I2C_ADDR);
@@ -53,7 +54,6 @@ static inline void printSensorJson(float ax, float ay, float az,
 void setup() {
   // USB serial
   Serial.begin(SERIAL_BAUD);
-  delay(2000); // Allow time for the host to open the port
 
   // I2C on specified pins
   Wire.begin(I2C_SDA, I2C_SCL, I2C_FREQUENCY_HZ);
@@ -62,6 +62,7 @@ void setup() {
   if (imu.begin() != 0) {
     // Halt on failure
     while (true) {
+      Serial.println("{ \"error\": \"Failed to initialize LSM6DS3\" }");
       delay(1000);
     }
   }
