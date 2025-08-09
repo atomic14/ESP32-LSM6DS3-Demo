@@ -24,7 +24,7 @@ class AccelerometerApp {
     // Orientation mode state
     private mode: 'accel' | 'gyro' | 'fusion' = 'accel';
     private lastTimestampMs: number | null = null;
-    private resetBtn!: HTMLButtonElement;
+    private resetGyroBtn!: HTMLButtonElement;
     private modeAccelRadio!: HTMLInputElement;
     private modeGyroRadio!: HTMLInputElement;
     private modeFusionRadio!: HTMLInputElement;
@@ -97,8 +97,7 @@ class AccelerometerApp {
         // Mode radio buttons
         this.modeAccelRadio = document.getElementById('mode-accel') as HTMLInputElement;
         this.modeGyroRadio = document.getElementById('mode-gyro') as HTMLInputElement;
-        const resetGyroBtn = document.getElementById('reset-gyro') as HTMLButtonElement | null;
-        if (resetGyroBtn) this.resetBtn = resetGyroBtn;
+        this.resetGyroBtn = document.getElementById('reset-gyro') as HTMLButtonElement | null;
         this.smoothingGroupEl = document.getElementById('smoothing-group') as HTMLElement;
         
         if (this.modeAccelRadio) {
@@ -143,18 +142,16 @@ class AccelerometerApp {
             this.smoothingSlider.disabled = false;
             if (this.smoothingGroupEl) this.smoothingGroupEl.style.opacity = '1';
         }
-        if (this.resetBtn) {
-            this.resetBtn.addEventListener('click', () => {
-                this.lastTimestampMs = null;
-                if (!this.pcbModel) return;
-                // Always reset the integrated gyro orientation (display)
-                this.pcbModel.resetIntegratedGyro();
-                // If in gyro mode, also reset the model orientation to identity
-                if (this.mode === 'gyro') {
-                    this.pcbModel.resetModelOrientation();
-                }
-            });
-        }
+        this.resetGyroBtn.addEventListener('click', () => {
+            this.lastTimestampMs = null;
+            if (!this.pcbModel) return;
+            // Always reset the integrated gyro orientation (display)
+            this.pcbModel.resetIntegratedGyro();
+            // If in gyro mode, also reset the model orientation to identity
+            if (this.mode === 'gyro') {
+                this.pcbModel.resetModelOrientation();
+            }
+        });
         
         this.serialManager.on('connected', () => {
             this.statusEl.textContent = 'Connected';
