@@ -306,7 +306,7 @@ export class PCBModel {
 
     private prevEuler: { roll: number; pitch: number; yaw: number } | null = null;
     private unwrapToPrev(currentDeg: number, prevDeg: number): number {
-        let delta = currentDeg - prevDeg;
+        const delta = currentDeg - prevDeg;
         if (delta > 180) currentDeg -= 360;
         else if (delta < -180) currentDeg += 360;
         return currentDeg;

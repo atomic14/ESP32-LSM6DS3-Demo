@@ -308,7 +308,7 @@ class AccelerometerApp {
 
     // Ensure angle follows previous sample branch to avoid ±180° wrap flips
     private unwrapToPrev(currentDeg: number, prevDeg: number): number {
-        let delta = currentDeg - prevDeg;
+        const delta = currentDeg - prevDeg;
         if (delta > 180) currentDeg -= 360;
         else if (delta < -180) currentDeg += 360;
         return currentDeg;

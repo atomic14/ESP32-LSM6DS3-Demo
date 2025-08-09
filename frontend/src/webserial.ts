@@ -17,9 +17,10 @@ export class WebSerialManager {
         // Listen for device unplug/reset events so UI updates when connection is lost unexpectedly
         if (WebSerialManager.isSupported()) {
             try {
-                (navigator as any).serial.addEventListener('disconnect', (event: any) => {
+                (navigator as unknown as { serial: { addEventListener: (type: string, listener: (e: unknown) => void) => void } }).serial.addEventListener('disconnect', (event: unknown) => {
+                    const evt = event as { port?: SerialPort } | undefined;
                     // Only react if the disconnected port is the one we are using
-                    if (this.port && event?.port === this.port) {
+                    if (this.port && evt?.port === this.port) {
                         // Perform cleanup and notify listeners
                         void this.cleanUpAndEmitDisconnectedIfNeeded();
                     }
@@ -131,17 +132,17 @@ export class WebSerialManager {
         const hadResources = this.reader !== null || this.port !== null;
         try {
             if (this.reader) {
-                try { await this.reader.cancel(); } catch {}
-                try { this.reader.releaseLock(); } catch {}
+                try { await this.reader.cancel(); } catch { /* ignore cancel errors */ }
+                try { this.reader.releaseLock(); } catch { /* ignore release errors */ }
                 this.reader = null;
             }
-        } catch {}
+        } catch { /* ignore cleanup errors */ }
         try {
             if (this.port) {
-                try { await this.port.close(); } catch {}
+                try { await this.port.close(); } catch { /* ignore close errors */ }
                 this.port = null;
             }
-        } catch {}
+        } catch { /* ignore cleanup errors */ }
         if (forceEmit || hadResources) {
             this.emit('disconnected');
         }
