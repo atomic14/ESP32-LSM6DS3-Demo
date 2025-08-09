@@ -1,13 +1,16 @@
 import { WebSerialManager, SensorData } from './webserial';
+import { WebBLEManager } from './webble';
 import { SceneManager } from './scene';
 import { PCBModel } from './pcb-model';
 import { AccelGraph } from './graph';
 
 class AccelerometerApp {
     private serialManager: WebSerialManager;
+    private bleManager: WebBLEManager | null = null;
     private sceneManager: SceneManager;
     private pcbModel: PCBModel | null = null;
     private connectBtn: HTMLButtonElement;
+    private connectBLEBtn!: HTMLButtonElement;
     private statusEl: HTMLElement;
     
     private smoothingSlider: HTMLInputElement;
@@ -83,7 +86,8 @@ class AccelerometerApp {
         }
         const gyroCanvas = document.getElementById('gyro-graph') as HTMLCanvasElement | null;
         if (gyroCanvas) {
-            this.gyroGraph = new AccelGraph(gyroCanvas, { historyLength: 360, minValue: -500, maxValue: 500, unitLabel: '°/s', title: 'Gyroscope (°/s)' });
+            // Narrower range to improve visual resolution and reduce perceived quantisation
+            this.gyroGraph = new AccelGraph(gyroCanvas, { historyLength: 360, minValue: -250, maxValue: 250, unitLabel: '°/s', title: 'Gyroscope (°/s)' });
         }
         const fusionCanvas = document.getElementById('fusion-graph') as HTMLCanvasElement | null;
         if (fusionCanvas) {
@@ -97,6 +101,7 @@ class AccelerometerApp {
         
         // Set up event listeners
         this.setupEventListeners();
+        this.setupBLEIfAvailable();
         
         // Start the render loop
         this.animate();
@@ -188,7 +193,7 @@ class AccelerometerApp {
         this.serialManager.on('disconnected', () => {
             this.statusEl.textContent = 'Disconnected';
             this.statusEl.className = 'status disconnected';
-            this.connectBtn.textContent = 'Connect to ESP32S3';
+            this.connectBtn.textContent = 'Connect via WebSerial';
             // Clear message rate on disconnect
             this.msgTimestamps = [];
             if (this.msgRateEl) this.msgRateEl.textContent = 'Msgs/s: 0';
@@ -233,6 +238,64 @@ class AccelerometerApp {
             this.statusEl.textContent = `Error: ${error.message}`;
             this.statusEl.className = 'status disconnected';
         });
+    }
+
+    private setupBLEIfAvailable() {
+        const btn = document.getElementById('connect-ble-btn') as HTMLButtonElement | null;
+        if (!btn) return;
+        this.connectBLEBtn = btn;
+        if (!WebBLEManager.isSupported()) {
+            this.connectBLEBtn.disabled = true;
+            this.connectBLEBtn.textContent = 'WebBLE not supported';
+            return;
+        }
+        this.bleManager = new WebBLEManager();
+        this.connectBLEBtn.addEventListener('click', () => this.handleBLEConnect());
+        this.bleManager.on('connected', () => {
+            this.statusEl.textContent = 'Connected (BLE)';
+            this.statusEl.className = 'status connected';
+            this.connectBLEBtn.textContent = 'Disconnect BLE';
+            this.msgTimestamps = [];
+            if (this.msgRateEl) this.msgRateEl.textContent = 'Msgs/s: 0';
+            if (this.deviceErrorEl) {
+                this.deviceErrorEl.style.display = 'none';
+                this.deviceErrorEl.textContent = '';
+            }
+            // Notifications are used for higher throughput; no polling needed
+        });
+        this.bleManager.on('disconnected', () => {
+            this.statusEl.textContent = 'Disconnected';
+            this.statusEl.className = 'status disconnected';
+            this.connectBLEBtn.textContent = 'Connect via WebBLE';
+            this.msgTimestamps = [];
+            if (this.msgRateEl) this.msgRateEl.textContent = 'Msgs/s: 0';
+            this.accelGraph?.clear();
+            this.gyroGraph?.clear();
+            this.fusionGraph?.clear();
+            this.lastFusionEuler = null;
+            this.lastTimestampMs = null;
+        });
+        this.bleManager.on('data', (data: SensorData) => this.handleSensorData(data));
+        this.bleManager.on('error', (error: Error) => {
+            console.error('BLE error:', error);
+            this.statusEl.textContent = `Error: ${error.message}`;
+            this.statusEl.className = 'status disconnected';
+        });
+    }
+
+    private blePollTimer: number | null = null;
+
+    private async handleBLEConnect() {
+        if (!this.bleManager) return;
+        if (this.bleManager.isConnected) {
+            if (this.blePollTimer !== null) {
+                window.clearInterval(this.blePollTimer);
+                this.blePollTimer = null;
+            }
+            await this.bleManager.disconnect();
+        } else {
+            await this.bleManager.connect();
+        }
     }
 
     private async handleConnect() {

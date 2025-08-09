@@ -20,4 +20,41 @@ interface Navigator {
         requestPort(): Promise<SerialPort>;
         getPorts(): Promise<SerialPort[]>;
     };
+    bluetooth: {
+        requestDevice(options: RequestDeviceOptions): Promise<BluetoothDevice>;
+    }
 }
+
+interface RequestDeviceOptions {
+    filters?: Array<{ name?: string; namePrefix?: string; services?: Array<string | BluetoothServiceUUID> }>;
+    optionalServices?: Array<string | BluetoothServiceUUID>;
+}
+
+interface BluetoothDevice {
+    name?: string | null;
+    gatt?: BluetoothRemoteGATTServer;
+    addEventListener(type: 'gattserverdisconnected', listener: (ev: Event) => void): void;
+}
+
+interface BluetoothRemoteGATTServer {
+    connected: boolean;
+    connect(): Promise<BluetoothRemoteGATTServer>;
+    disconnect(): void;
+    getPrimaryService(service: string | BluetoothServiceUUID): Promise<BluetoothRemoteGATTService>;
+}
+
+interface BluetoothRemoteGATTService {
+    getCharacteristic(characteristic: string | BluetoothCharacteristicUUID): Promise<BluetoothRemoteGATTCharacteristic>;
+}
+
+interface BluetoothRemoteGATTCharacteristic {
+    readValue(): Promise<DataView>;
+    writeValue(value: BufferSource): Promise<void>;
+    startNotifications(): Promise<void>;
+    stopNotifications(): Promise<void>;
+    addEventListener(type: 'characteristicvaluechanged', listener: (ev: Event) => void): void;
+    value?: DataView | null;
+}
+
+type BluetoothServiceUUID = number | string;
+type BluetoothCharacteristicUUID = number | string;

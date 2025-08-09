@@ -133,8 +133,11 @@
         <div id="canvas-container"></div>
         <div id="ui">
             <div class="control-group">
-                <h3>WebSerial Connection</h3>
-                <button id="connect-btn">Connect to ESP32S3</button>
+                <h3>Connection</h3>
+                <div style="display:flex; gap:10px; flex-wrap: wrap; align-items:center; margin-bottom:8px;">
+                    <button id="connect-btn">Connect via WebSerial</button>
+                    <button id="connect-ble-btn">Connect via WebBLE</button>
+                </div>
                 <div id="connection-status" class="status disconnected">Disconnected</div>
                 <div id="message-rate" class="data-display" style="font-size: 12px; color: #aaa; margin-top: 4px;">Msgs/s: 0</div>
                 <div style="margin-top: 8px; display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center;">

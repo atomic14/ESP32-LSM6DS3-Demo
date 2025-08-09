@@ -6,6 +6,7 @@
 #include <Wire.h>
 #include <LSM6DS3.h>
 #include "Fusion.h"
+#include <NimBLEDevice.h>
 
 // Hardware constants
 #define I2C_SDA 7
@@ -24,6 +25,46 @@ static FusionAhrs g_ahrs;
 static FusionOffset offset;
 
 static uint32_t g_lastUpdateMicros = 0;
+
+// BLE (NimBLE) - custom GATT service and characteristics
+static NimBLEServer* g_bleServer = nullptr;
+static NimBLECharacteristic* g_blePacketCharacteristic = nullptr; // combined packet notify
+
+static const char* BLE_SERVICE_UUID = "9c2a8b2a-6c7a-4b8b-bf3c-7f6b1f7f0001";
+static const char* BLE_PACKET_UUID  = "9c2a8b2a-6c7a-4b8b-bf3c-7f6b1f7f2001";  // combined packet
+
+struct Vector3f {
+  float x;
+  float y;
+  float z;
+};
+
+static void initialiseBle() {
+  NimBLEDevice::init("ESP32IMU_v1");
+  // Increase TX power for stability and request low connection interval for throughput
+  NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+  // 7.5 ms min, 25 ms max (values are in 1.25 ms units)
+  // NimBLEDevice::setMinPreferred(0x06);
+  // NimBLEDevice::setMaxPreferred(0x12);
+  // Increase the MTU to reduce GATT overhead (central will negotiate down if needed)
+  NimBLEDevice::setMTU(185);
+
+  g_bleServer = NimBLEDevice::createServer();
+  NimBLEService* service = g_bleServer->createService(BLE_SERVICE_UUID);
+
+  // Combined packet characteristic for efficient streaming
+  g_blePacketCharacteristic = service->createCharacteristic(
+      BLE_PACKET_UUID,
+      NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+
+  service->start();
+
+  NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
+  advertising->setName("ESP32IMU_v1");
+  advertising->addServiceUUID(BLE_SERVICE_UUID);
+  advertising->enableScanResponse(true);
+  advertising->start();
+}
 
 static inline void printSensorJson(float ax, float ay, float az,
                                    float gx, float gy, float gz,
@@ -87,6 +128,9 @@ void setup() {
   g_lastUpdateMicros = micros();
 
   delay(100);
+
+  // BLE GATT server
+  initialiseBle();
 }
 
 void loop() {
@@ -129,7 +173,27 @@ void loop() {
 
   const FusionEuler euler = FusionQuaternionToEuler(FusionAhrsGetQuaternion(&g_ahrs));
 
-  // Emit one JSON object per line for the frontend to parse
-  printSensorJson(accelX, accelY, accelZ, gyroX, gyroY, gyroZ, temperatureC,
-                  euler.angle.roll, euler.angle.pitch, euler.angle.yaw);
+  // Emit one JSON object per line for the frontend to parse (only when BLE is not connected)
+  if (!(g_bleServer && g_bleServer->getConnectedCount() > 0)) {
+    printSensorJson(accelX, accelY, accelZ, gyroX, gyroY, gyroZ, temperatureC,
+                    euler.angle.roll, euler.angle.pitch, euler.angle.yaw);
+  }
+
+  // Update BLE combined characteristic and notify if connected
+  if (g_bleServer && g_bleServer->getConnectedCount() > 0) {
+    // Packet layout (little-endian float32):
+    // [ax, ay, az, gx, gy, gz, temperatureC, rollDeg, pitchDeg, yawDeg]
+    float packet[10] = {
+      accelX, accelY, accelZ,
+      gyroX,  gyroY,  gyroZ,
+      temperatureC,
+      euler.angle.roll, euler.angle.pitch, euler.angle.yaw
+    };
+    if (g_blePacketCharacteristic) {
+      g_blePacketCharacteristic->setValue(reinterpret_cast<const uint8_t*>(packet), sizeof(packet));
+      g_blePacketCharacteristic->notify();
+    }
+
+    // No legacy characteristics
+  }
 }
