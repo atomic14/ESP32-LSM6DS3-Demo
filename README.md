@@ -62,8 +62,9 @@ npm run dev         # Start development server
 3. Select ESP32S3 serial port
 4. Choose an orientation mode:
    - `Accelerometer (abs)`: absolute tilt (pitch/roll) with optional smoothing
-   - `Gyro (integrated)`: integrates angular rate to track orientation (no smoothing)
-5. Use the `Reset` button to zero orientation if needed
+   - `Gyro (integrated)`: integrates angular rate to track orientation
+   - `Fusion (AHRS)`: uses accelerometer and gyroscope data to estimate orientation
+5. Use the `Reset` button to zero gyro integration if needed
 6. Tilt/rotate the PCB to see real-time 3D visualization
 
 ## Features
@@ -86,8 +87,17 @@ npm run dev         # Start development server
 ## Data Format
 
 The firmware outputs JSON at 10Hz (example):
-```json
-{"accel":{"x":0.123,"y":0.456,"z":0.789},"gyro":{"x":1.23,"y":4.56,"z":7.89},"temp":25.4}
+```jsonc
+{
+  // Accelerometer data in g
+  "accel": { "x": 0.123, "y": 0.456, "z": 0.789 },
+  // Gyroscope data in deg/s
+  "gyro": { "x": 1.23, "y": 4.56, "z": 7.89 },
+  // Euler angles in degrees (from Fusion AHRS)
+  "euler": { "roll": 10.0, "pitch": 20.0, "yaw": 30.0 },
+  // Temperature in °C
+  "temp": 25.4
+}
 ```
 
 ## Browser Requirements
