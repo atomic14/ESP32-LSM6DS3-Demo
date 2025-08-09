@@ -31,6 +31,7 @@ class AccelerometerApp {
     private smoothingGroupEl!: HTMLElement;
     private msgRateEl!: HTMLElement;
     private msgTimestamps: number[] = [];
+    private deviceErrorEl!: HTMLElement | null;
 
     constructor() {
         this.serialManager = new WebSerialManager();
@@ -39,6 +40,20 @@ class AccelerometerApp {
         this.connectBtn = document.getElementById('connect-btn') as HTMLButtonElement;
         this.statusEl = document.getElementById('connection-status') as HTMLElement;
         this.msgRateEl = document.getElementById('message-rate') as HTMLElement;
+        // Create or reference an error display under status
+        this.deviceErrorEl = document.getElementById('device-error');
+        if (!this.deviceErrorEl) {
+            const el = document.createElement('div');
+            el.id = 'device-error';
+            el.className = 'status disconnected';
+            el.style.marginTop = '6px';
+            el.style.display = 'none';
+            const statusParent = this.statusEl.parentElement;
+            if (statusParent) {
+                statusParent.insertBefore(el, statusParent.children[statusParent.children.length - 1] || null);
+            }
+            this.deviceErrorEl = el;
+        }
         
         this.smoothingSlider = document.getElementById('smoothing-slider') as HTMLInputElement;
         this.smoothingValueSpan = document.getElementById('smoothing-value') as HTMLSpanElement;
@@ -163,6 +178,10 @@ class AccelerometerApp {
             // Reset message rate window on new connection
             this.msgTimestamps = [];
             if (this.msgRateEl) this.msgRateEl.textContent = 'Msgs/s: 0';
+            if (this.deviceErrorEl) {
+                this.deviceErrorEl.style.display = 'none';
+                this.deviceErrorEl.textContent = '';
+            }
             
         });
         
@@ -173,6 +192,10 @@ class AccelerometerApp {
             // Clear message rate on disconnect
             this.msgTimestamps = [];
             if (this.msgRateEl) this.msgRateEl.textContent = 'Msgs/s: 0';
+            if (this.deviceErrorEl) {
+                this.deviceErrorEl.style.display = 'none';
+                this.deviceErrorEl.textContent = '';
+            }
             
             this.accelGraph?.clear();
             this.gyroGraph?.clear();
@@ -184,6 +207,25 @@ class AccelerometerApp {
         
         this.serialManager.on('data', (data: SensorData) => {
             this.handleSensorData(data);
+        });
+        this.serialManager.on('rawLine', () => {
+            // Count every line received for Msgs/s including errors
+            const now = performance.now();
+            this.msgTimestamps.push(now);
+            const oneSecondAgo = now - 1000;
+            while (this.msgTimestamps.length && this.msgTimestamps[0] < oneSecondAgo) {
+                this.msgTimestamps.shift();
+            }
+            if (this.msgRateEl) {
+                this.msgRateEl.textContent = `Msgs/s: ${this.msgTimestamps.length.toString()}`;
+            }
+        });
+        this.serialManager.on('deviceError', (message: string) => {
+            if (this.deviceErrorEl) {
+                this.deviceErrorEl.textContent = `Device error: ${message}`;
+                this.deviceErrorEl.style.display = 'block';
+                this.deviceErrorEl.className = 'status disconnected';
+            }
         });
         
         this.serialManager.on('error', (error: Error) => {

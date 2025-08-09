@@ -9,6 +9,8 @@ interface WebSerialEvents {
     connected: () => void;
     disconnected: () => void;
     data: (data: SensorData) => void;
+    deviceError: (message: string) => void;
+    rawLine: (line: string) => void;
     error: (error: Error) => void;
 }
 
@@ -116,7 +118,10 @@ export class WebSerialManager {
                 this.buffer = lines.pop() || ''; // Keep incomplete line in buffer
                 
                 for (const line of lines) {
-                    this.processLine(line.trim());
+                    const trimmed = line.trim();
+                    if (!trimmed) continue;
+                    this.emit('rawLine', trimmed);
+                    this.processLine(trimmed);
                 }
             }
         } catch (error) {
@@ -178,12 +183,14 @@ export class WebSerialManager {
                 };
 
                 this.emit('data', sensorData);
+            } else if (typeof jsonData.error === 'string') {
+                // Valid JSON error object: {"error":"..."}
+                this.emit('deviceError', jsonData.error);
             } else {
                 console.warn('Invalid JSON structure:', jsonData);
             }
         } catch {
-            // Silently ignore non-JSON lines (could be debug output during startup)
-            // console.warn('Failed to parse JSON sensor data:', error, 'Line:', line);
+            console.log("Non-JSON line:", line);
         }
     }
 }
