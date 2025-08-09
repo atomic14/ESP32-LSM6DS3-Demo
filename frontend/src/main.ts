@@ -18,6 +18,7 @@ class AccelerometerApp {
     private modelFileNameSpan!: HTMLSpanElement;
     private accelGraph: AccelGraph | null = null;
     private gyroGraph: AccelGraph | null = null;
+    private fusionGraph: AccelGraph | null = null;
 
     // Orientation mode state
     private mode: 'accel' | 'gyro' = 'accel';
@@ -55,7 +56,7 @@ class AccelerometerApp {
         // Initialize smoothing UI/model linkage
         this.handleSmoothingChange();
 
-        // Initialize accelerometer and gyro graphs
+        // Initialize accelerometer, gyro, and fusion graphs
         const accelCanvas = document.getElementById('accel-graph') as HTMLCanvasElement | null;
         if (accelCanvas) {
             this.accelGraph = new AccelGraph(accelCanvas, { historyLength: 360, minValue: -2, maxValue: 2, unitLabel: 'g', title: 'Accelerometer (g)' });
@@ -64,9 +65,14 @@ class AccelerometerApp {
         if (gyroCanvas) {
             this.gyroGraph = new AccelGraph(gyroCanvas, { historyLength: 360, minValue: -500, maxValue: 500, unitLabel: '°/s', title: 'Gyroscope (°/s)' });
         }
+        const fusionCanvas = document.getElementById('fusion-graph') as HTMLCanvasElement | null;
+        if (fusionCanvas) {
+            this.fusionGraph = new AccelGraph(fusionCanvas, { historyLength: 360, minValue: -180, maxValue: 180, unitLabel: '°', title: 'Fusion (°)' });
+        }
         window.addEventListener('resize', () => {
             this.accelGraph?.resize();
             this.gyroGraph?.resize();
+            this.fusionGraph?.resize();
         });
         
         // Set up event listeners
@@ -145,6 +151,7 @@ class AccelerometerApp {
             
             this.accelGraph?.clear();
             this.gyroGraph?.clear();
+            this.fusionGraph?.clear();
             // Avoid large integration step on next connect
             this.lastTimestampMs = null;
         });
@@ -222,6 +229,19 @@ class AccelerometerApp {
         // Feed graphs
         this.accelGraph?.addPoint(data.accel);
         this.gyroGraph?.addPoint(data.gyro);
+        if (data.euler) {
+            this.fusionGraph?.addPoint({ x: data.euler.roll, y: data.euler.pitch, z: data.euler.yaw });
+        }
+
+        // Update Fusion text values if present
+        const fr = document.getElementById('fusion-roll');
+        const fp = document.getElementById('fusion-pitch');
+        const fy = document.getElementById('fusion-yaw');
+        if (data.euler && fr && fp && fy) {
+            fr.textContent = data.euler.roll.toFixed(1);
+            fp.textContent = data.euler.pitch.toFixed(1);
+            fy.textContent = data.euler.yaw.toFixed(1);
+        }
     }
 
     private animate() {
