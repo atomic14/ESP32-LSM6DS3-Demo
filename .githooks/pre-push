@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+REPO_ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+log() { printf "\033[1;34m[pre-push]\033[0m %s\n" "$*"; }
+err() { printf "\033[1;31m[pre-push]\033[0m %s\n" "$*"; }
+
+log "Running pre-push checks (frontend lint/build, firmware build)"
+
+# Frontend: lint and build
+if [ -d "$REPO_ROOT_DIR/frontend" ]; then
+  log "Checking frontend..."
+  pushd "$REPO_ROOT_DIR/frontend" >/dev/null
+
+  if [ ! -d node_modules ]; then
+    log "Installing frontend dependencies (npm ci)"
+    npm ci --no-audit --no-fund
+  fi
+
+  log "Linting frontend"
+  npm run lint
+
+  log "Building frontend"
+  npm run build
+
+  popd >/dev/null
+else
+  log "No frontend directory found; skipping frontend checks"
+fi
+
+# Firmware: PlatformIO build
+if [ -d "$REPO_ROOT_DIR/firmware" ]; then
+  log "Building firmware (PlatformIO)"
+  pushd "$REPO_ROOT_DIR/firmware" >/dev/null
+
+  if command -v pio >/dev/null 2>&1; then
+    pio run
+  elif python3 -c "import platformio" >/dev/null 2>&1; then
+    python3 -m platformio run
+  else
+    err "PlatformIO CLI not found. Install it: https://platformio.org/install"
+    err "You can use: pipx install platformio  (or) pip install --user platformio"
+    exit 1
+  fi
+
+  popd >/dev/null
+else
+  log "No firmware directory found; skipping firmware build"
+fi
+
+log "All checks passed. Proceeding with push."
+
+exit 0
+
+
