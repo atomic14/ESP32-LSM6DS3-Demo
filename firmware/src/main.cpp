@@ -10,6 +10,7 @@
 // Hardware constants
 #define I2C_SDA 7
 #define I2C_SCL 15
+// LSM6DS3 I2C address - choose between 0x6A and 0x6B - most boards use 0x6A
 #define LSM6DS3_I2C_ADDR 0x6B
 
 #define I2C_FREQUENCY_HZ 400000
@@ -49,6 +50,7 @@ static inline void printSensorJson(float ax, float ay, float az,
   Serial.print(",\"yaw\":");
   Serial.print(yawDeg, 1);
   Serial.println("}}");
+  Serial.flush();
 }
 
 void setup() {
@@ -79,7 +81,7 @@ void setup() {
   };
   FusionAhrsSetSettings(&g_ahrs, &settings);
 
-  // TODO - what is the actual sample rate?
+  // TODO - what is the actual sample rate - it's probably something around this
   FusionOffsetInitialise(&offset, 100);
 
   g_lastUpdateMicros = micros();

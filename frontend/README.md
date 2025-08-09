@@ -6,11 +6,11 @@ Real-time 3D visualization of ESP32S3 accelerometer and gyroscope data using Thr
 
 - **Real-time 3D Visualization**: Live PCB orientation tracking
 - **WebSerial Integration**: Direct connection to ESP32S3 via WebSerial API
-- **GLB Model Support**: Displays actual PCB 3D model converted from STEP files
-- **Orientation Modes**: Accelerometer (absolute tilt) or Gyro (integrated)
+- **GLB Model Support**: Displays actual PCB 3D model (you will need to convert your model to GLB)
+- **Orientation Modes**: Accelerometer (absolute tilt), Gyro (integrated) or Fusion (AHRS) - see this [repo](https://github.com/xioTechnologies/Fusion/tree/main) for details
 - **Adjustable Smoothing (Accel only)**: Fine-tune responsiveness vs stability
-- **Dual Charts**: Separate live charts for accelerometer (g) and gyroscope (°/s)
-- **Professional Lighting**: Specular lighting with realistic material reflections
+- **Charts**: Separate live charts for accelerometer (g), gyroscope (°/s) and fusion (°)
+- **Lighting**: Specular lighting with realistic material reflections
 
 ## Requirements
 
@@ -44,11 +44,12 @@ Real-time 3D visualization of ESP32S3 accelerometer and gyroscope data using Thr
 - **Status Indicator**: Shows connection state (Connected/Disconnected)
 
 ### 3D Visualization & Controls
-- **Orientation Mode**: Choose between `Accelerometer (abs)` and `Gyro (integrated)`
+- **Orientation Mode**: Choose between `Accelerometer (abs)`, `Gyro (integrated)` or `Fusion (AHRS)`
   - In Gyro mode, orientation integrates angular rate with no smoothing (for accuracy)
   - In Accel mode, orientation uses absolute tilt (pitch/roll) with optional smoothing
+  - In Fusion mode, orientation uses accelerometer and gyroscope data to estimate orientation - see this [repo](https://github.com/xioTechnologies/Fusion/tree/main) for details
 - **Smoothing**: Slider enabled in Accel mode; disabled in Gyro mode
-- **Reset**: Resets the model orientation and gyro integration
+- **Reset**: Resets the gyro integration (in Gyro mode)
 - **Mouse Drag**: Rotate camera around PCB
 - **Mouse Wheel**: Zoom in/out
 - **Real-time Updates**: PCB orientation matches physical device
@@ -57,7 +58,16 @@ Real-time 3D visualization of ESP32S3 accelerometer and gyroscope data using Thr
 
 The frontend expects JSON data from the ESP32S3:
 ```json
-{"accel":{"x":0.123,"y":0.456,"z":0.789},"gyro":{"x":1.23,"y":4.56,"z":7.89},"temp":25.4}
+{
+  // Accelerometer data in g
+  "accel": { "x": 0.123, "y": 0.456, "z": 0.789 },
+  // Gyroscope data in deg/s
+  "gyro": { "x": 1.23, "y": 4.56, "z": 7.89 },
+  // Euler angles in degrees (from Fusion AHRS)
+  "euler": { "roll": 10.0, "pitch": 20.0, "yaw": 30.0 },
+  // Temperature in °C
+  "temp": 25.4
+}
 ```
 
 ## Charts
@@ -65,7 +75,7 @@ The frontend expects JSON data from the ESP32S3:
 - Two overlaid charts are rendered:
   - **Accelerometer (g)**: X/Y/Z in ±2g by default
   - **Gyroscope (°/s)**: X/Y/Z in ±500°/s by default
-- Titles appear top-center; legends are right-aligned. Ranges can be adjusted in `src/main.ts` when constructing the graphs.
+  - **Fusion (°)**: Roll/Pitch/Yaw in degrees (from Fusion AHRS)
 
 ## Build Commands
 
@@ -93,7 +103,7 @@ npm run lint
 - **Vite**: Build tool and dev server
 - **WebSerial API**: Direct browser-to-device communication
 - **GLTFLoader**: 3D model loading
- - **Sensor Fusion (AHRS)**: Orientation from the embedded firmware uses the Fusion library by xioTechnologies: [xioTechnologies/Fusion](https://github.com/xioTechnologies/Fusion/tree/main)
+- **Sensor Fusion (AHRS)**: Orientation from the embedded firmware uses the Fusion library by xioTechnologies: [xioTechnologies/Fusion](https://github.com/xioTechnologies/Fusion/tree/main)
 
 ## Project Structure
 

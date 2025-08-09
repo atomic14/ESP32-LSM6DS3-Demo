@@ -72,7 +72,7 @@ npm run dev         # Start development server
 ## Features
 
 ### Hardware
-- **I2C Communication**: LSM6DS3 accelerometer/gyroscope
+- **I2C Communication**: LSM6DS3 accelerometer/gyroscope - you can adjust the pins and I2C address in `main.cpp`
 - **JSON Output**: Clean, parseable data format output over serial
 
 ### Frontend
