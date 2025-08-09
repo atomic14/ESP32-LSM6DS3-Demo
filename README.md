@@ -63,7 +63,7 @@ npm run dev         # Start development server
 4. Choose an orientation mode:
    - `Accelerometer (abs)`: absolute tilt (pitch/roll) with optional smoothing
    - `Gyro (integrated)`: integrates angular rate to track orientation
-   - `Fusion (AHRS)`: uses accelerometer and gyroscope data to estimate orientation
+   - `Fusion (AHRS)`: uses accelerometer and gyroscope data to estimate orientation - see this [repo](https://github.com/xioTechnologies/Fusion/tree/main) for details
 5. Use the `Reset` button to zero gyro integration if needed
 6. Tilt/rotate the PCB to see real-time 3D visualization
 
