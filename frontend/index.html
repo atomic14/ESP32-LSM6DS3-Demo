@@ -159,16 +159,15 @@
                         <input type="radio" name="mode" id="mode-fusion">
                         <span>Fusion (AHRS)</span>
                     </label>
-                    <button id="reset-orientation" style="margin-left: 8px;">Reset</button>
                 </div>
             </div>
 
             <div class="control-group" id="smoothing-group">
                 <h3>Smoothing</h3>
-                <div style="margin-top: 10px;">
-                    <label for="smoothing-slider" style="font-size: 12px; color: #ccc;">Smoothing:</label>
-                    <input type="range" id="smoothing-slider" min="0" max="50" value="10" style="width: 100px; margin-left: 5px;">
-                    <span id="smoothing-value" style="font-size: 11px; color: #aaa;">0.1</span>
+                <div style="margin-top: 10px; display:flex; align-items:center; gap:8px; flex-wrap: wrap;">
+                    <label for="smoothing-slider" style="font-size: 12px; color: #ccc;">Time constant:</label>
+                    <input type="range" id="smoothing-slider" min="0" max="100" value="50" style="width: 160px;">
+                    <span id="smoothing-value" style="font-size: 11px; color: #aaa;">~160 ms</span>
                 </div>
             </div>
             
@@ -176,9 +175,13 @@
                 <h3>Sensor Data</h3>
                 <div class="data-display">
                     <div>Accel: <span id="accel-x">0.000</span>, <span id="accel-y">0.000</span>, <span id="accel-z">0.000</span>g</div>
-                    <div>Gyro: <span id="gyro-x">0.00</span>, <span id="gyro-y">0.00</span>, <span id="gyro-z">0.00</span>°/s</div>
-                    <div>Temp: <span id="temperature">0.0</span>°C</div>
+                    <div>Gyro (inst): <span id="gyro-x">0.00</span>, <span id="gyro-y">0.00</span>, <span id="gyro-z">0.00</span>°/s</div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap: wrap;">
+                        <span>Gyro (integrated): <span id="gyro-int-roll">0.0</span>°, <span id="gyro-int-pitch">0.0</span>°, <span id="gyro-int-yaw">0.0</span>°</span>
+                        <button id="reset-gyro" style="padding: 4px 8px; font-size: 12px;">Reset Gyro</button>
+                    </div>
                     <div>Fusion: <span id="fusion-roll">—</span>°, <span id="fusion-pitch">—</span>°, <span id="fusion-yaw">—</span>°</div>
+                    <div>Temperature: <span id="temperature">0.0</span>°C</div>
                 </div>
             </div>
             <div class="footer-links">

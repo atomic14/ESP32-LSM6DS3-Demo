@@ -13,6 +13,22 @@ interface WebSerialEvents {
 }
 
 export class WebSerialManager {
+    constructor() {
+        // Listen for device unplug/reset events so UI updates when connection is lost unexpectedly
+        if (WebSerialManager.isSupported()) {
+            try {
+                (navigator as any).serial.addEventListener('disconnect', (event: any) => {
+                    // Only react if the disconnected port is the one we are using
+                    if (this.port && event?.port === this.port) {
+                        // Perform cleanup and notify listeners
+                        void this.cleanUpAndEmitDisconnectedIfNeeded();
+                    }
+                });
+            } catch {
+                // Best-effort; older browsers may not support the event
+            }
+        }
+    }
     static isSupported(): boolean {
         return typeof navigator !== 'undefined' && 'serial' in navigator;
     }
@@ -76,18 +92,7 @@ export class WebSerialManager {
 
     async disconnect() {
         try {
-            if (this.reader) {
-                await this.reader.cancel();
-                this.reader.releaseLock();
-                this.reader = null;
-            }
-
-            if (this.port) {
-                await this.port.close();
-                this.port = null;
-            }
-
-            this.emit('disconnected');
+            await this.cleanUpAndEmitDisconnectedIfNeeded(true);
         } catch (error) {
             console.error('Failed to disconnect:', error);
             this.emit('error', error instanceof Error ? error : new Error(String(error)));
@@ -116,6 +121,29 @@ export class WebSerialManager {
         } catch (error) {
             console.error('Reading error:', error);
             this.emit('error', error instanceof Error ? error : new Error(String(error)));
+        } finally {
+            // If the stream closed or errored unexpectedly, ensure cleanup and UI update
+            await this.cleanUpAndEmitDisconnectedIfNeeded();
+        }
+    }
+
+    private async cleanUpAndEmitDisconnectedIfNeeded(forceEmit: boolean = false) {
+        const hadResources = this.reader !== null || this.port !== null;
+        try {
+            if (this.reader) {
+                try { await this.reader.cancel(); } catch {}
+                try { this.reader.releaseLock(); } catch {}
+                this.reader = null;
+            }
+        } catch {}
+        try {
+            if (this.port) {
+                try { await this.port.close(); } catch {}
+                this.port = null;
+            }
+        } catch {}
+        if (forceEmit || hadResources) {
+            this.emit('disconnected');
         }
     }
 

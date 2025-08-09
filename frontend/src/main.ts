@@ -97,8 +97,8 @@ class AccelerometerApp {
         // Mode radio buttons
         this.modeAccelRadio = document.getElementById('mode-accel') as HTMLInputElement;
         this.modeGyroRadio = document.getElementById('mode-gyro') as HTMLInputElement;
-        const resetBtn = document.getElementById('reset-orientation') as HTMLButtonElement | null;
-        if (resetBtn) this.resetBtn = resetBtn;
+        const resetGyroBtn = document.getElementById('reset-gyro') as HTMLButtonElement | null;
+        if (resetGyroBtn) this.resetBtn = resetGyroBtn;
         this.smoothingGroupEl = document.getElementById('smoothing-group') as HTMLElement;
         
         if (this.modeAccelRadio) {
@@ -129,10 +129,9 @@ class AccelerometerApp {
             this.modeFusionRadio.addEventListener('change', () => {
                 if (this.modeFusionRadio.checked) {
                     this.mode = 'fusion';
-                    // Enable smoothing for fusion as well (we slerp toward target)
-                    this.smoothingSlider.disabled = false;
-                    if (this.smoothingGroupEl) this.smoothingGroupEl.style.opacity = '1';
-                    this.handleSmoothingChange();
+                    // Disable smoothing UI in fusion mode (handled by AHRS)
+                    this.smoothingSlider.disabled = true;
+                    if (this.smoothingGroupEl) this.smoothingGroupEl.style.opacity = '0.5';
                 }
             });
         }
@@ -147,7 +146,13 @@ class AccelerometerApp {
         if (this.resetBtn) {
             this.resetBtn.addEventListener('click', () => {
                 this.lastTimestampMs = null;
-                this.pcbModel?.resetOrientation();
+                if (!this.pcbModel) return;
+                // Always reset the integrated gyro orientation (display)
+                this.pcbModel.resetIntegratedGyro();
+                // If in gyro mode, also reset the model orientation to identity
+                if (this.mode === 'gyro') {
+                    this.pcbModel.resetModelOrientation();
+                }
             });
         }
         
@@ -193,10 +198,15 @@ class AccelerometerApp {
     
 
     private handleSmoothingChange() {
-        const value = parseInt(this.smoothingSlider.value, 10) / 100; // Convert 0-50 to 0-0.5
-        this.smoothingValueSpan.textContent = value.toFixed(2);
+        // Map slider 0..100 to time constant in ms on a log scale ~ [5 ms, 2000 ms]
+        const slider = parseInt(this.smoothingSlider.value, 10);
+        const minMs = 5;
+        const maxMs = 2000;
+        const t = slider / 100; // 0..1
+        const tauMs = Math.round(minMs * Math.pow(maxMs / minMs, t));
+        this.smoothingValueSpan.textContent = `~${tauMs} ms`;
         if (this.pcbModel) {
-            this.pcbModel.setSmoothingFactor(value);
+            this.pcbModel.setSmoothingTimeConstantMs(tauMs);
         }
     }
 
@@ -230,9 +240,10 @@ class AccelerometerApp {
         // Update 3D model orientation based on selected mode
         if (this.pcbModel) {
             if (this.mode === 'accel') {
-                this.pcbModel.updateOrientationFromAccel(data.accel);
-                // Reset dt anchor so switching back to gyro doesn't integrate a large gap
-                this.lastTimestampMs = performance.now();
+                const now = performance.now();
+                const dt = this.lastTimestampMs == null ? 0 : (now - this.lastTimestampMs) / 1000;
+                this.lastTimestampMs = now;
+                this.pcbModel.updateOrientationFromAccel(data.accel, dt);
             } else if (this.mode === 'gyro') {
                 const now = performance.now();
                 const dt = this.lastTimestampMs == null ? 0 : (now - this.lastTimestampMs) / 1000;
@@ -240,7 +251,11 @@ class AccelerometerApp {
                 this.pcbModel.updateOrientationFromGyro(data.gyro, dt);
             } else if (this.mode === 'fusion') {
                 if (data.euler) {
-                    this.pcbModel.updateOrientationFromFusionEuler(data.euler);
+                    // For fusion mode we bypass extra smoothing; still compute dt for consistency
+                    const now = performance.now();
+                    const dt = this.lastTimestampMs == null ? 0 : (now - this.lastTimestampMs) / 1000;
+                    this.lastTimestampMs = now;
+                    this.pcbModel.updateOrientationFromFusionEuler(data.euler, dt);
                 }
             }
         }
@@ -248,6 +263,24 @@ class AccelerometerApp {
         // Feed graphs
         this.accelGraph?.addPoint(data.accel);
         this.gyroGraph?.addPoint(data.gyro);
+        // Always integrate gyro for a separate display regardless of mode
+        if (this.pcbModel) {
+            // Use the same dt as computed above where available; recompute here safely
+            const now = performance.now();
+            const dt = this.lastTimestampMs == null ? 0 : (now - this.lastTimestampMs) / 1000;
+            // do not advance lastTimestampMs here to avoid affecting mode updates; use a small dt fallback
+            const safeDt = dt > 0 ? dt : 0.001;
+            this.pcbModel.integrateGyroForDisplay(data.gyro, safeDt);
+            const eInt = this.pcbModel.getIntegratedGyroEulerDegreesZYX();
+            const r = document.getElementById('gyro-int-roll');
+            const p = document.getElementById('gyro-int-pitch');
+            const y = document.getElementById('gyro-int-yaw');
+            if (r && p && y) {
+                r.textContent = this.normalize180(eInt.roll).toFixed(1);
+                p.textContent = this.normalize180(eInt.pitch).toFixed(1);
+                y.textContent = this.normalize180(eInt.yaw).toFixed(1);
+            }
+        }
         if (data.euler) {
             let r = data.euler.roll;
             let p = data.euler.pitch;
