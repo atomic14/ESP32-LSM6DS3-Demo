@@ -17,6 +17,15 @@
 #define I2C_FREQUENCY_HZ 400000
 #define SERIAL_BAUD 115200
 
+// Battery status inputs
+#define PIN_BATT_CHARGING 16   // input, active-low: LOW = charging
+#define PIN_BATT_CHARGED  17   // input, active-low: LOW = charged
+
+// Active-low LEDs
+#define PIN_LED_RED   4        // output, active-low: LOW = on
+#define PIN_LED_GREEN 6        // output, active-low: LOW = on
+#define PIN_LED_BLUE  5        // output, active-low: LOW = on
+
 // Sensor instance (I2C)
 LSM6DS3 imu(I2C_MODE, LSM6DS3_I2C_ADDR);
 
@@ -38,6 +47,71 @@ struct Vector3f {
   float y;
   float z;
 };
+
+// BLE connection state (for LED indication)
+static volatile bool g_bleConnected = false;
+
+
+
+// Simple helpers for active-low LEDs
+// LED dimming via PWM (LEDC)
+// Note: LEDs are active-low, so duty controls proportion of HIGH level.
+// To achieve a perceived brightness B (0.0..1.0) where 1.0 is fully on (LOW),
+// we set dutyNormalized = 1 - B.
+#define LED_PWM_FREQ_HZ 5000
+#define LED_PWM_RES_BITS 8
+#define LED_PWM_MAX_DUTY ((1 << LED_PWM_RES_BITS) - 1)
+// Global brightness when an LED is considered "on" (0.0..1.0). Adjust to taste.
+static const float LED_BRIGHTNESS = 0.10f; // 10% brightness
+const uint32_t LED_BLINK_PERIOD_MS = 500; // 1 Hz blink
+
+
+enum LedcChannelIndices {
+  LEDC_CHANNEL_RED = 0,
+  LEDC_CHANNEL_GREEN = 1,
+  LEDC_CHANNEL_BLUE = 2,
+};
+
+static inline void initLeds() {
+  #ifdef PIN_LED_RED
+  ledcSetup(LEDC_CHANNEL_RED, LED_PWM_FREQ_HZ, LED_PWM_RES_BITS);
+  ledcAttachPin(PIN_LED_RED, LEDC_CHANNEL_RED);
+  #endif
+  #ifdef PIN_LED_GREEN
+  ledcSetup(LEDC_CHANNEL_GREEN, LED_PWM_FREQ_HZ, LED_PWM_RES_BITS);
+  ledcAttachPin(PIN_LED_GREEN, LEDC_CHANNEL_GREEN);
+  #endif
+  #ifdef PIN_LED_BLUE
+  ledcSetup(LEDC_CHANNEL_BLUE, LED_PWM_FREQ_HZ, LED_PWM_RES_BITS);
+  ledcAttachPin(PIN_LED_BLUE, LEDC_CHANNEL_BLUE);
+  #endif
+}
+
+static inline void writeLedOnState(uint8_t channel, bool on) {
+  const uint32_t dutyWhenOn = (uint32_t)(LED_PWM_MAX_DUTY * (1.0f - LED_BRIGHTNESS) + 0.5f);
+  const uint32_t duty = on ? dutyWhenOn : LED_PWM_MAX_DUTY; // active-low: HIGH (max duty) = off
+  ledcWrite(channel, duty);
+}
+
+static inline void setRedLed(bool on)   {
+  #ifdef PIN_LED_RED
+  writeLedOnState(LEDC_CHANNEL_RED, on);
+  #endif
+}
+static inline void setGreenLed(bool on) {
+  #ifdef PIN_LED_GREEN
+  writeLedOnState(LEDC_CHANNEL_GREEN, on);
+  #endif
+}
+static inline void setBlueLed(bool on)  {
+  #ifdef PIN_LED_BLUE
+  writeLedOnState(LEDC_CHANNEL_BLUE, on);
+  #endif
+}
+
+// Non-blocking blink timers
+static uint32_t g_lastBlueBlinkMs = 0;
+static bool g_blueBlinkOn = false;
 
 static void initialiseBle() {
   NimBLEDevice::init("ESP32IMU_v1");
@@ -110,6 +184,17 @@ void setup() {
     }
   }
 
+  // GPIO configuration: battery status inputs and LEDs (active-low)
+  #ifdef PIN_BATT_CHARGING
+  pinMode(PIN_BATT_CHARGING, INPUT_PULLUP);
+  pinMode(PIN_BATT_CHARGED,  INPUT_PULLUP);
+  #endif
+  initLeds();
+  // Ensure LEDs off on boot
+  setRedLed(false);
+  setGreenLed(false);
+  setBlueLed(false);
+
   // Initialise Fusion AHRS
   FusionAhrsInitialise(&g_ahrs);
   const FusionAhrsSettings settings = {
@@ -134,6 +219,18 @@ void setup() {
 }
 
 void loop() {
+  // Battery LED logic
+  const bool isCharging = (digitalRead(PIN_BATT_CHARGING) == LOW);
+  const bool isCharged  = (digitalRead(PIN_BATT_CHARGED)  == LOW);
+
+  const uint32_t nowMs = millis();
+
+  // RED: solid during charging (and not yet charged), off otherwise
+  setRedLed(isCharging && !isCharged);
+
+  // GREEN: solid when charged, off otherwise
+  setGreenLed(isCharged);
+
   // Accelerometer in g, gyro in deg/s, temperature in °C
   const float accelX = imu.readFloatAccelX();
   const float accelY = imu.readFloatAccelY();
@@ -193,7 +290,15 @@ void loop() {
       g_blePacketCharacteristic->setValue(reinterpret_cast<const uint8_t*>(packet), sizeof(packet));
       g_blePacketCharacteristic->notify();
     }
-
-    // No legacy characteristics
+    // no need to blink the blue LED when connected
+    g_blueBlinkOn = false;
+    setBlueLed(true);
+  } else {
+    // blink the blue LED when not connected
+    if (nowMs - g_lastBlueBlinkMs >= LED_BLINK_PERIOD_MS) {
+      g_lastBlueBlinkMs = nowMs;
+      g_blueBlinkOn = !g_blueBlinkOn;
+      setBlueLed(g_blueBlinkOn);
+    }
   }
 }
