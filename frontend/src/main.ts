@@ -214,16 +214,7 @@ class AccelerometerApp {
             this.handleSensorData(data);
         });
         this.serialManager.on('rawLine', () => {
-            // Count every line received for Msgs/s including errors
-            const now = performance.now();
-            this.msgTimestamps.push(now);
-            const oneSecondAgo = now - 1000;
-            while (this.msgTimestamps.length && this.msgTimestamps[0] < oneSecondAgo) {
-                this.msgTimestamps.shift();
-            }
-            if (this.msgRateEl) {
-                this.msgRateEl.textContent = `Msgs/s: ${this.msgTimestamps.length.toString()}`;
-            }
+            // ignore raw lines
         });
         this.serialManager.on('deviceError', (message: string) => {
             if (this.deviceErrorEl) {
