@@ -20,9 +20,9 @@ class AccelerometerApp {
     private modelFileInput!: HTMLInputElement;
     private modelFileButton!: HTMLButtonElement;
     private modelFileNameSpan!: HTMLSpanElement;
-    private accelGraph: AccelGraph | null = null;
-    private gyroGraph: AccelGraph | null = null;
-    private fusionGraph: AccelGraph | null = null;
+    private accelGraph: AccelGraph
+    private gyroGraph: AccelGraph
+    private fusionGraph: AccelGraph
     private lastFusionEuler: { roll: number; pitch: number; yaw: number } | null = null;
 
     // Orientation mode state
@@ -37,7 +37,7 @@ class AccelerometerApp {
     private smoothingGroupEl!: HTMLElement;
     private msgRateEl!: HTMLElement;
     private msgTimestamps: number[] = [];
-    private deviceErrorEl!: HTMLElement | null;
+    private deviceErrorEl!: HTMLElement
 
     constructor() {
         this.serialManager = new WebSerialManager();
@@ -47,19 +47,17 @@ class AccelerometerApp {
         this.statusEl = document.getElementById('connection-status') as HTMLElement;
         this.msgRateEl = document.getElementById('message-rate') as HTMLElement;
         // Create or reference an error display under status
-        this.deviceErrorEl = document.getElementById('device-error');
-        if (!this.deviceErrorEl) {
-            const el = document.createElement('div');
-            el.id = 'device-error';
-            el.className = 'status disconnected';
-            el.style.marginTop = '6px';
-            el.style.display = 'none';
-            const statusParent = this.statusEl.parentElement;
-            if (statusParent) {
-                statusParent.insertBefore(el, statusParent.children[statusParent.children.length - 1] || null);
-            }
-            this.deviceErrorEl = el;
+        this.deviceErrorEl = document.getElementById('device-error') as HTMLElement;
+        const el = document.createElement('div');
+        el.id = 'device-error';
+        el.className = 'status disconnected';
+        el.style.marginTop = '6px';
+        el.style.display = 'none';
+        const statusParent = this.statusEl.parentElement;
+        if (statusParent) {
+            statusParent.insertBefore(el, statusParent.children[statusParent.children.length - 1] || null);
         }
+        this.deviceErrorEl = el;
         
         this.smoothingSlider = document.getElementById('smoothing-slider') as HTMLInputElement;
         this.smoothingValueSpan = document.getElementById('smoothing-value') as HTMLSpanElement;
@@ -67,6 +65,14 @@ class AccelerometerApp {
         this.modelFileInput = document.getElementById('model-file') as HTMLInputElement;
         this.modelFileButton = document.getElementById('model-file-btn') as HTMLButtonElement;
         this.modelFileNameSpan = document.getElementById('model-file-name') as HTMLSpanElement;
+
+        // Initialize accelerometer, gyro, and fusion graphs
+        const accelCanvas = document.getElementById('accel-graph') as HTMLCanvasElement;
+        this.accelGraph = new AccelGraph(accelCanvas, { historyLength: 360, minValue: -2, maxValue: 2, unitLabel: 'g', title: 'Accelerometer (g)' });
+        const gyroCanvas = document.getElementById('gyro-graph') as HTMLCanvasElement;
+        this.gyroGraph = new AccelGraph(gyroCanvas, { historyLength: 360, minValue: -250, maxValue: 250, unitLabel: '°/s', title: 'Gyroscope (°/s)' });
+        const fusionCanvas = document.getElementById('fusion-graph') as HTMLCanvasElement;
+        this.fusionGraph = new AccelGraph(fusionCanvas, { historyLength: 360, minValue: -180, maxValue: 180, unitLabel: '°', title: 'Fusion (°)' });
 
         this.init();
     }
@@ -82,24 +88,10 @@ class AccelerometerApp {
         // Initialize smoothing UI/model linkage
         this.handleSmoothingChange();
 
-        // Initialize accelerometer, gyro, and fusion graphs
-        const accelCanvas = document.getElementById('accel-graph') as HTMLCanvasElement | null;
-        if (accelCanvas) {
-            this.accelGraph = new AccelGraph(accelCanvas, { historyLength: 360, minValue: -2, maxValue: 2, unitLabel: 'g', title: 'Accelerometer (g)' });
-        }
-        const gyroCanvas = document.getElementById('gyro-graph') as HTMLCanvasElement | null;
-        if (gyroCanvas) {
-            // Narrower range to improve visual resolution and reduce perceived quantisation
-            this.gyroGraph = new AccelGraph(gyroCanvas, { historyLength: 360, minValue: -250, maxValue: 250, unitLabel: '°/s', title: 'Gyroscope (°/s)' });
-        }
-        const fusionCanvas = document.getElementById('fusion-graph') as HTMLCanvasElement | null;
-        if (fusionCanvas) {
-            this.fusionGraph = new AccelGraph(fusionCanvas, { historyLength: 360, minValue: -180, maxValue: 180, unitLabel: '°', title: 'Fusion (°)' });
-        }
         window.addEventListener('resize', () => {
-            this.accelGraph?.resize();
-            this.gyroGraph?.resize();
-            this.fusionGraph?.resize();
+            this.accelGraph.resize();
+            this.gyroGraph.resize();
+            this.fusionGraph.resize();
         });
         
         // Set up event listeners
@@ -209,9 +201,9 @@ class AccelerometerApp {
                 this.deviceErrorEl.textContent = '';
             }
             
-            this.accelGraph?.clear();
-            this.gyroGraph?.clear();
-            this.fusionGraph?.clear();
+            this.accelGraph.clear();
+            this.gyroGraph.clear();
+            this.fusionGraph.clear();
             this.lastFusionEuler = null;
             // Avoid large integration step on next connect
             this.prevDeviceTimeSec = null;
@@ -255,11 +247,9 @@ class AccelerometerApp {
             this.statusEl.className = 'status connected';
             this.connectBLEBtn.textContent = 'Disconnect BLE';
             this.msgTimestamps = [];
-            if (this.msgRateEl) this.msgRateEl.textContent = 'Msgs/s: 0';
-            if (this.deviceErrorEl) {
-                this.deviceErrorEl.style.display = 'none';
-                this.deviceErrorEl.textContent = '';
-            }
+            this.msgRateEl.textContent = 'Msgs/s: 0';
+            this.deviceErrorEl.style.display = 'none';
+            this.deviceErrorEl.textContent = '';
             // Notifications are used for higher throughput; no polling needed
             // Reset timing so first dt is sane
             this.prevDeviceTimeSec = null;
@@ -270,10 +260,10 @@ class AccelerometerApp {
             this.statusEl.className = 'status disconnected';
             this.connectBLEBtn.textContent = 'Connect via WebBLE';
             this.msgTimestamps = [];
-            if (this.msgRateEl) this.msgRateEl.textContent = 'Msgs/s: 0';
-            this.accelGraph?.clear();
-            this.gyroGraph?.clear();
-            this.fusionGraph?.clear();
+            this.msgRateEl.textContent = 'Msgs/s: 0';
+            this.accelGraph.clear();
+            this.gyroGraph.clear();
+            this.fusionGraph.clear();
             this.lastFusionEuler = null;
             this.prevDeviceTimeSec = null;
             this.prevIntegratedTimeSec = null;
@@ -381,8 +371,8 @@ class AccelerometerApp {
         }
 
         // Feed graphs
-        this.accelGraph?.addPoint(data.accel);
-        this.gyroGraph?.addPoint(data.gyro);
+        this.accelGraph.addPoint(data.accel);
+        this.gyroGraph.addPoint(data.gyro);
         // Always integrate gyro for a separate display regardless of mode
         if (this.pcbModel) {
             // Use a dedicated device time so this integration is decoupled from mode updates
