@@ -1,4 +1,5 @@
-import { WebSerialManager, SensorData } from './webserial';
+import { WebSerialManager } from './webserial';
+import { SensorData } from './sensor-types';
 import { WebBLEManager } from './webble';
 import { SceneManager } from './scene';
 import { PCBModel } from './pcb-model';
@@ -26,7 +27,9 @@ class AccelerometerApp {
 
     // Orientation mode state
     private mode: 'accel' | 'gyro' | 'fusion' = 'accel';
-    private lastTimestampMs: number | null = null;
+    private prevDeviceTimeSec: number | null = null; // previous packet device time (seconds)
+    // Separate device time for always-on integrated gyro display
+    private prevIntegratedTimeSec: number | null = null;
     private resetGyroBtn!: HTMLButtonElement;
     private modeAccelRadio!: HTMLInputElement;
     private modeGyroRadio!: HTMLInputElement;
@@ -139,7 +142,7 @@ class AccelerometerApp {
                 if (this.modeGyroRadio.checked) {
                     this.mode = 'gyro';
                     // Reset timing so first dt is not huge
-                    this.lastTimestampMs = null;
+                    this.prevDeviceTimeSec = null;
                     // Disable smoothing UI in gyro mode
                     this.smoothingSlider.disabled = true;
                     if (this.smoothingGroupEl) this.smoothingGroupEl.style.opacity = '0.5';
@@ -166,7 +169,8 @@ class AccelerometerApp {
             if (this.smoothingGroupEl) this.smoothingGroupEl.style.opacity = '1';
         }
         this.resetGyroBtn.addEventListener('click', () => {
-            this.lastTimestampMs = null;
+            this.prevDeviceTimeSec = null;
+            this.prevIntegratedTimeSec = null;
             if (!this.pcbModel) return;
             // Always reset the integrated gyro orientation (display)
             this.pcbModel.resetIntegratedGyro();
@@ -187,6 +191,9 @@ class AccelerometerApp {
                 this.deviceErrorEl.style.display = 'none';
                 this.deviceErrorEl.textContent = '';
             }
+            // Reset timing so first dt is sane
+            this.prevDeviceTimeSec = null;
+            this.prevIntegratedTimeSec = null;
             
         });
         
@@ -207,7 +214,8 @@ class AccelerometerApp {
             this.fusionGraph?.clear();
             this.lastFusionEuler = null;
             // Avoid large integration step on next connect
-            this.lastTimestampMs = null;
+            this.prevDeviceTimeSec = null;
+            this.prevIntegratedTimeSec = null;
         });
         
         this.serialManager.on('data', (data: SensorData) => {
@@ -253,6 +261,9 @@ class AccelerometerApp {
                 this.deviceErrorEl.textContent = '';
             }
             // Notifications are used for higher throughput; no polling needed
+            // Reset timing so first dt is sane
+            this.prevDeviceTimeSec = null;
+            this.prevIntegratedTimeSec = null;
         });
         this.bleManager.on('disconnected', () => {
             this.statusEl.textContent = 'Disconnected';
@@ -264,7 +275,8 @@ class AccelerometerApp {
             this.gyroGraph?.clear();
             this.fusionGraph?.clear();
             this.lastFusionEuler = null;
-            this.lastTimestampMs = null;
+            this.prevDeviceTimeSec = null;
+            this.prevIntegratedTimeSec = null;
         });
         this.bleManager.on('data', (data: SensorData) => this.handleSensorData(data));
         this.bleManager.on('error', (error: Error) => {
@@ -328,10 +340,10 @@ class AccelerometerApp {
     }
 
     private handleSensorData(data: SensorData) {
-        // Update message rate using a 1s sliding window
-        const now = performance.now();
-        this.msgTimestamps.push(now);
-        const oneSecondAgo = now - 1000;
+        // Update message rate using a 1s sliding window based on device time
+        const nowSec = isFinite(data.t) ? data.t : (this.msgTimestamps.length ? this.msgTimestamps[this.msgTimestamps.length - 1] : 0);
+        this.msgTimestamps.push(nowSec);
+        const oneSecondAgo = nowSec - 1;
         // Remove old timestamps
         while (this.msgTimestamps.length && this.msgTimestamps[0] < oneSecondAgo) {
             this.msgTimestamps.shift();
@@ -353,22 +365,16 @@ class AccelerometerApp {
         
         // Update 3D model orientation based on selected mode
         if (this.pcbModel) {
+            // Compute dt strictly from device absolute time
+            const prev = this.prevDeviceTimeSec;
+            this.prevDeviceTimeSec = isFinite(data.t) ? data.t : null;
+            const dt = prev != null && isFinite(data.t) ? Math.max(0, data.t - prev) : 0;
             if (this.mode === 'accel') {
-                const now = performance.now();
-                const dt = this.lastTimestampMs == null ? 0 : (now - this.lastTimestampMs) / 1000;
-                this.lastTimestampMs = now;
                 this.pcbModel.updateOrientationFromAccel(data.accel, dt);
             } else if (this.mode === 'gyro') {
-                const now = performance.now();
-                const dt = this.lastTimestampMs == null ? 0 : (now - this.lastTimestampMs) / 1000;
-                this.lastTimestampMs = now;
                 this.pcbModel.updateOrientationFromGyro(data.gyro, dt);
             } else if (this.mode === 'fusion') {
                 if (data.euler) {
-                    // For fusion mode we bypass extra smoothing; still compute dt for consistency
-                    const now = performance.now();
-                    const dt = this.lastTimestampMs == null ? 0 : (now - this.lastTimestampMs) / 1000;
-                    this.lastTimestampMs = now;
                     this.pcbModel.updateOrientationFromFusionEuler(data.euler, dt);
                 }
             }
@@ -379,11 +385,11 @@ class AccelerometerApp {
         this.gyroGraph?.addPoint(data.gyro);
         // Always integrate gyro for a separate display regardless of mode
         if (this.pcbModel) {
-            // Use the same dt as computed above where available; recompute here safely
-            const now = performance.now();
-            const dt = this.lastTimestampMs == null ? 0 : (now - this.lastTimestampMs) / 1000;
-            // do not advance lastTimestampMs here to avoid affecting mode updates; use a small dt fallback
-            const safeDt = dt > 0 ? dt : 0.001;
+            // Use a dedicated device time so this integration is decoupled from mode updates
+            const prevInt = this.prevIntegratedTimeSec;
+            this.prevIntegratedTimeSec = isFinite(data.t) ? data.t : null;
+            const dtInt = prevInt != null && isFinite(data.t) ? Math.max(0, data.t - prevInt) : 0;
+            const safeDt = dtInt > 0 ? dtInt : 0;
             this.pcbModel.integrateGyroForDisplay(data.gyro, safeDt);
             const eInt = this.pcbModel.getIntegratedGyroEulerDegreesZYX();
             const r = document.getElementById('gyro-int-roll');

@@ -1,9 +1,4 @@
-export interface SensorData {
-    accel: { x: number; y: number; z: number };
-    gyro: { x: number; y: number; z: number };
-    temperature: number;
-    euler?: { roll: number; pitch: number; yaw: number };
-}
+import { SensorData } from "./sensor-types";
 
 interface WebSerialEvents {
     connected: () => void;
@@ -154,15 +149,15 @@ export class WebSerialManager {
     }
 
     private processLine(line: string) {
-        // Parse ESP32S3 JSON sensor output format:
-        // {"accel":{"x":0.123,"y":0.456,"z":0.789},"gyro":{"x":1.23,"y":4.56,"z":7.89},"temp":25.4}
+            // Parse ESP32S3 JSON sensor output format:
+            // {"accel":{"x":0.123,"y":0.456,"z":0.789},"gyro":{"x":1.23,"y":4.56,"z":7.89},"temp":25.4,"euler":{"roll":..,"pitch":..,"yaw":..},"t":123.456}
         
         // Skip empty lines or lines that don't look like JSON
         if (!line.trim() || !line.includes('{') || !line.includes('}')) {
             return;
         }
 
-        try {
+            try {
             const jsonData = JSON.parse(line.trim());
             
             // Validate JSON structure
@@ -179,7 +174,8 @@ export class WebSerialManager {
                         z: jsonData.gyro.z
                     },
                     temperature: jsonData.temp,
-                    euler: jsonData.euler
+                    euler: jsonData.euler,
+                    t: jsonData.t
                 };
 
                 this.emit('data', sensorData);

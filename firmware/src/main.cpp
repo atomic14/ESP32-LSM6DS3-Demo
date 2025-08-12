@@ -134,7 +134,7 @@ static void initialiseBle() {
 static inline void printSensorJson(float ax, float ay, float az, float gx,
                                    float gy, float gz, float temperatureC,
                                    float rollDeg, float pitchDeg,
-                                   float yawDeg) {
+                                   float yawDeg, float timeSec) {
   Serial.print("{\"accel\":{\"x\":");
   Serial.print(ax, 3);
   Serial.print(",\"y\":");
@@ -155,7 +155,9 @@ static inline void printSensorJson(float ax, float ay, float az, float gx,
   Serial.print(pitchDeg, 1);
   Serial.print(",\"yaw\":");
   Serial.print(yawDeg, 1);
-  Serial.println("}}");
+  Serial.print("},\"t\":");
+  Serial.print(timeSec, 6);
+  Serial.println("}");
   Serial.flush();
 }
 
@@ -261,18 +263,19 @@ void loop() {
     printSensorJson(accelerometer.axis.x, accelerometer.axis.y,
                     accelerometer.axis.z, gyroscope.axis.x, gyroscope.axis.y,
                     gyroscope.axis.z, temperatureC, euler.angle.roll,
-                    euler.angle.pitch, euler.angle.yaw);
+                    euler.angle.pitch, euler.angle.yaw, now / 1e6f);
   }
 
   // Update BLE combined characteristic and notify if connected
   if (g_bleServer && g_bleServer->getConnectedCount() > 0) {
     // Packet layout (little-endian float32):
-    // [ax, ay, az, gx, gy, gz, temperatureC, rollDeg, pitchDeg, yawDeg]
-    float packet[10] = {accelerometer.axis.x, accelerometer.axis.y,
+    // [ax, ay, az, gx, gy, gz, temperatureC, rollDeg, pitchDeg, yawDeg, timeSec]
+    float packet[11] = {accelerometer.axis.x, accelerometer.axis.y,
                         accelerometer.axis.z, gyroscope.axis.x,
                         gyroscope.axis.y,     gyroscope.axis.z,
                         temperatureC,         euler.angle.roll,
-                        euler.angle.pitch,    euler.angle.yaw};
+                        euler.angle.pitch,    euler.angle.yaw,
+                        now / 1e6f};
     if (g_blePacketCharacteristic) {
       g_blePacketCharacteristic->setValue(
           reinterpret_cast<const uint8_t *>(packet), sizeof(packet));

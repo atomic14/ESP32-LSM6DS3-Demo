@@ -24,6 +24,7 @@ export class WebBLEManager {
   private latestEuler: { roll: number; pitch: number; yaw: number } | null = null;
   private latestTemp: number | null = null;
   private emitScheduled = false;
+  private latestTimeSec: number | null = null; // absolute device time
   // Track whether we actually receive notifications on the packet characteristic; if not, enable fallback polling (none now)
   // private packetNotified = false; // informational only
 
@@ -119,13 +120,14 @@ export class WebBLEManager {
 
     // Combined packet notification
     await tryStart(this.packetChar, (dv) => {
-      // Packet layout: 10 float32 little-endian
-      const values = new Float32Array(10);
-      for (let i = 0; i < 10; i++) values[i] = dv.getFloat32(i * 4, true);
+      // Packet layout: 11 float32 little-endian
+      const values = new Float32Array(11);
+      for (let i = 0; i < 11; i++) values[i] = dv.getFloat32(i * 4, true);
       this.latestAccel = { x: values[0], y: values[1], z: values[2] };
       this.latestGyro = { x: values[3], y: values[4], z: values[5] };
       this.latestTemp = values[6];
       this.latestEuler = { roll: values[7], pitch: values[8], yaw: values[9] };
+      this.latestTimeSec = isFinite(values[10]) ? values[10] : null;
       // packet received
       this.scheduleEmitIfReady();
     });
@@ -143,7 +145,8 @@ export class WebBLEManager {
         accel: this.latestAccel!,
         gyro: this.latestGyro!,
         temperature: this.latestTemp!,
-        euler: this.latestEuler || undefined,
+        euler: this.latestEuler!,
+        t: this.latestTimeSec ?? 0,
       };
       this.emit('data', packet);
     });
