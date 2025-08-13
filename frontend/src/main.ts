@@ -389,9 +389,9 @@ class AccelerometerApp {
             }
         }
         if (data.fusion) {
-            let r = data.fusion.roll;
-            let p = data.fusion.pitch;
-            let y = data.fusion.yaw;
+            const r = data.fusion.roll;
+            const p = data.fusion.pitch;
+            const y = data.fusion.yaw;
             // Graph expects values within [-180, 180); normalize so X/Z are not pegged at range limits
             const gr = this.normalize180(r);
             const gp = this.normalize180(p);
