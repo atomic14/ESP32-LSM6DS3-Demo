@@ -34,11 +34,29 @@ export class WebSerialManager {
     private port: SerialPort | null = null;
     private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
     private decoder = new TextDecoder();
+    private encoder = new TextEncoder();
     private buffer = '';
     private eventListeners: { [K in keyof WebSerialEvents]?: WebSerialEvents[K][] } = {};
 
     get isConnected(): boolean {
         return this.port !== null && this.port.readable !== null;
+    }
+
+    async sendCommand(command: string): Promise<void> {
+        try {
+            if (!this.isConnected || !this.port?.writable) {
+                throw new Error('Serial port not connected');
+            }
+            const writer = this.port.writable.getWriter();
+            try {
+                const payload = this.encoder.encode(`${command}\n`);
+                await writer.write(payload);
+            } finally {
+                writer.releaseLock();
+            }
+        } catch (error) {
+            this.emit('error', error instanceof Error ? error : new Error(String(error)));
+        }
     }
 
     on<K extends keyof WebSerialEvents>(event: K, callback: WebSerialEvents[K]) {
@@ -161,7 +179,7 @@ export class WebSerialManager {
             const jsonData = JSON.parse(line.trim());
             
             // Validate JSON structure
-            if (jsonData.accel && jsonData.gyro && typeof jsonData.temp === 'number') {
+            if (jsonData.accel && jsonData.gyro && jsonData.gyroInt && jsonData.fusion && typeof jsonData.temp === 'number') {
                 const sensorData: SensorData = {
                     accel: {
                         x: jsonData.accel.x,
@@ -173,11 +191,19 @@ export class WebSerialManager {
                         y: jsonData.gyro.y,
                         z: jsonData.gyro.z
                     },
+                    gyroInt: {
+                        roll: jsonData.gyroInt.roll,
+                        pitch: jsonData.gyroInt.pitch,
+                        yaw: jsonData.gyroInt.yaw
+                    },
+                    fusion: {
+                        roll: jsonData.fusion.roll,
+                        pitch: jsonData.fusion.pitch,
+                        yaw: jsonData.fusion.yaw
+                    },
                     temperature: jsonData.temp,
-                    euler: jsonData.euler,
                     t: jsonData.t
                 };
-
                 this.emit('data', sensorData);
             } else if (typeof jsonData.error === 'string') {
                 // Valid JSON error object: {"error":"..."}

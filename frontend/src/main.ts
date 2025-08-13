@@ -23,13 +23,11 @@ class AccelerometerApp {
     private accelGraph: AccelGraph
     private gyroGraph: AccelGraph
     private fusionGraph: AccelGraph
-    private lastFusionEuler: { roll: number; pitch: number; yaw: number } | null = null;
 
     // Orientation mode state
     private mode: 'accel' | 'gyro' | 'fusion' = 'accel';
     private prevDeviceTimeSec: number | null = null; // previous packet device time (seconds)
     // Separate device time for always-on integrated gyro display
-    private prevIntegratedTimeSec: number | null = null;
     private resetGyroBtn!: HTMLButtonElement;
     private modeAccelRadio!: HTMLInputElement;
     private modeGyroRadio!: HTMLInputElement;
@@ -162,14 +160,26 @@ class AccelerometerApp {
         }
         this.resetGyroBtn.addEventListener('click', () => {
             this.prevDeviceTimeSec = null;
-            this.prevIntegratedTimeSec = null;
             if (!this.pcbModel) return;
             // Always reset the integrated gyro orientation (display)
-            this.pcbModel.resetIntegratedGyro();
+            // TODO this.pcbModel.resetIntegratedGyro();
             // If in gyro mode, also reset the model orientation to identity
             if (this.mode === 'gyro') {
                 this.pcbModel.resetModelOrientation();
             }
+            // Send RESET_GYRO to device over whichever transport is connected
+            void (async () => {
+                try {
+                    if (this.serialManager.isConnected) {
+                        await this.serialManager.sendCommand('RESET_GYRO');
+                    }
+                    if (this.bleManager && this.bleManager.isConnected) {
+                        await this.bleManager.sendCommand('RESET_GYRO');
+                    }
+                } catch (e) {
+                    console.warn('Failed to send RESET_GYRO:', e);
+                }
+            })();
         });
         
         this.serialManager.on('connected', () => {
@@ -185,7 +195,6 @@ class AccelerometerApp {
             }
             // Reset timing so first dt is sane
             this.prevDeviceTimeSec = null;
-            this.prevIntegratedTimeSec = null;
             
         });
         
@@ -204,10 +213,8 @@ class AccelerometerApp {
             this.accelGraph.clear();
             this.gyroGraph.clear();
             this.fusionGraph.clear();
-            this.lastFusionEuler = null;
             // Avoid large integration step on next connect
             this.prevDeviceTimeSec = null;
-            this.prevIntegratedTimeSec = null;
         });
         
         this.serialManager.on('data', (data: SensorData) => {
@@ -253,7 +260,6 @@ class AccelerometerApp {
             // Notifications are used for higher throughput; no polling needed
             // Reset timing so first dt is sane
             this.prevDeviceTimeSec = null;
-            this.prevIntegratedTimeSec = null;
         });
         this.bleManager.on('disconnected', () => {
             this.statusEl.textContent = 'Disconnected';
@@ -264,9 +270,7 @@ class AccelerometerApp {
             this.accelGraph.clear();
             this.gyroGraph.clear();
             this.fusionGraph.clear();
-            this.lastFusionEuler = null;
             this.prevDeviceTimeSec = null;
-            this.prevIntegratedTimeSec = null;
         });
         this.bleManager.on('data', (data: SensorData) => this.handleSensorData(data));
         this.bleManager.on('error', (error: Error) => {
@@ -362,10 +366,10 @@ class AccelerometerApp {
             if (this.mode === 'accel') {
                 this.pcbModel.updateOrientationFromAccel(data.accel, dt);
             } else if (this.mode === 'gyro') {
-                this.pcbModel.updateOrientationFromGyro(data.gyro, dt);
+                this.pcbModel.updateOrientationFromEuler(data.gyroInt, dt);
             } else if (this.mode === 'fusion') {
-                if (data.euler) {
-                    this.pcbModel.updateOrientationFromFusionEuler(data.euler, dt);
+                if (data.fusion) {
+                    this.pcbModel.updateOrientationFromEuler(data.fusion, dt);
                 }
             }
         }
@@ -374,57 +378,34 @@ class AccelerometerApp {
         this.accelGraph.addPoint(data.accel);
         this.gyroGraph.addPoint(data.gyro);
         // Always integrate gyro for a separate display regardless of mode
-        if (this.pcbModel) {
-            // Use a dedicated device time so this integration is decoupled from mode updates
-            const prevInt = this.prevIntegratedTimeSec;
-            this.prevIntegratedTimeSec = isFinite(data.t) ? data.t : null;
-            const dtInt = prevInt != null && isFinite(data.t) ? Math.max(0, data.t - prevInt) : 0;
-            const safeDt = dtInt > 0 ? dtInt : 0;
-            this.pcbModel.integrateGyroForDisplay(data.gyro, safeDt);
-            const eInt = this.pcbModel.getIntegratedGyroEulerDegreesZYX();
+        if (data.gyroInt) {
             const r = document.getElementById('gyro-int-roll');
             const p = document.getElementById('gyro-int-pitch');
             const y = document.getElementById('gyro-int-yaw');
             if (r && p && y) {
-                r.textContent = this.normalize180(eInt.roll).toFixed(1);
-                p.textContent = this.normalize180(eInt.pitch).toFixed(1);
-                y.textContent = this.normalize180(eInt.yaw).toFixed(1);
+                r.textContent = this.normalize180(data.gyroInt.roll).toFixed(1);
+                p.textContent = this.normalize180(data.gyroInt.pitch).toFixed(1);
+                y.textContent = this.normalize180(data.gyroInt.yaw).toFixed(1);
             }
         }
-        if (data.euler) {
-            let r = data.euler.roll;
-            let p = data.euler.pitch;
-            let y = data.euler.yaw;
-            if (this.lastFusionEuler) {
-                r = this.unwrapToPrev(r, this.lastFusionEuler.roll);
-                p = this.unwrapToPrev(p, this.lastFusionEuler.pitch);
-                y = this.unwrapToPrev(y, this.lastFusionEuler.yaw);
-            }
-            this.lastFusionEuler = { roll: r, pitch: p, yaw: y };
+        if (data.fusion) {
+            let r = data.fusion.roll;
+            let p = data.fusion.pitch;
+            let y = data.fusion.yaw;
             // Graph expects values within [-180, 180); normalize so X/Z are not pegged at range limits
             const gr = this.normalize180(r);
             const gp = this.normalize180(p);
             const gy = this.normalize180(y);
             this.fusionGraph?.addPoint({ x: gr, y: gp, z: gy });
+            const fr = document.getElementById('fusion-roll');
+            const fp = document.getElementById('fusion-pitch');
+            const fy = document.getElementById('fusion-yaw');
+            if (fr && fp && fy) {
+                fr.textContent = gr.toFixed(1);
+                fp.textContent = gp.toFixed(1);
+                fy.textContent = gy.toFixed(1);
+            }
         }
-
-        // Update Fusion text values if present (display wrapped to [-180, 180))
-        const fr = document.getElementById('fusion-roll');
-        const fp = document.getElementById('fusion-pitch');
-        const fy = document.getElementById('fusion-yaw');
-        if (this.lastFusionEuler && fr && fp && fy) {
-            fr.textContent = this.normalize180(this.lastFusionEuler.roll).toFixed(1);
-            fp.textContent = this.normalize180(this.lastFusionEuler.pitch).toFixed(1);
-            fy.textContent = this.normalize180(this.lastFusionEuler.yaw).toFixed(1);
-        }
-    }
-
-    // Ensure angle follows previous sample branch to avoid ±180° wrap flips
-    private unwrapToPrev(currentDeg: number, prevDeg: number): number {
-        const delta = currentDeg - prevDeg;
-        if (delta > 180) currentDeg -= 360;
-        else if (delta < -180) currentDeg += 360;
-        return currentDeg;
     }
 
     private normalize180(deg: number): number {

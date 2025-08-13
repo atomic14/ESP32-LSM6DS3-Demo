@@ -33,18 +33,22 @@ LSM6DS3 imu(I2C_MODE, LSM6DS3_I2C_ADDR);
 // Fusion AHRS
 static FusionAhrs g_ahrs;
 static FusionOffset offset;
+// Quaternion for pure gyroscope integration (sensor frame)
+static FusionQuaternion g_gyroQuaternion = FUSION_IDENTITY_QUATERNION;
 
-static uint32_t g_lastUpdateMicros = 0;
+static uint32_t lastUpdateMicros = 0;
 
 // BLE (NimBLE) - custom GATT service and characteristics
 static NimBLEServer *g_bleServer = nullptr;
 static NimBLECharacteristic *g_blePacketCharacteristic =
     nullptr; // combined packet notify
+static NimBLECharacteristic *g_bleControlCharacteristic = nullptr; // control write (commands)
 
 static const char *BLE_SERVICE_UUID = "9c2a8b2a-6c7a-4b8b-bf3c-7f6b1f7f0001";
 static const char *BLE_PACKET_UUID =
     "9c2a8b2a-6c7a-4b8b-bf3c-7f6b1f7f2001"; // combined packet
-
+static const char *BLE_CONTROL_UUID =
+    "9c2a8b2a-6c7a-4b8b-bf3c-7f6b1f7f1001"; // control write (commands)
 
 // Simple helpers for active-low LEDs
 // LED dimming via PWM (LEDC)
@@ -103,6 +107,29 @@ static inline void setBlueLed(bool on) {
 #endif
 }
 
+static inline void resetGyroIntegration() {
+  g_gyroQuaternion = FUSION_IDENTITY_QUATERNION;
+}
+
+// BLE control characteristic write callback
+class ControlCallbacks : public NimBLECharacteristicCallbacks {
+  void onWrite (NimBLECharacteristic *pCharacteristic, NimBLEConnInfo &connInfo) override {
+    std::string value = pCharacteristic->getValue();
+    // Accept ASCII commands, case-insensitive, trim whitespace
+    // Look for RESET_GYRO
+    auto isSpace = [](char c) { return c == '\r' || c == '\n' || c == '\t' || c == ' '; };
+    size_t start = 0, end = value.size();
+    while (start < end && isSpace(value[start])) start++;
+    while (end > start && isSpace(value[end - 1])) end--;
+    std::string cmd = value.substr(start, end - start);
+    // Uppercase
+    for (char &c : cmd) c = (char)toupper((unsigned char)c);
+    if (cmd == "RESET_GYRO") {
+      resetGyroIntegration();
+    }
+  }
+};
+
 static void initialiseBle() {
   NimBLEDevice::init("ESP32IMU_v1");
   // Increase TX power for stability and request low connection interval for
@@ -122,6 +149,13 @@ static void initialiseBle() {
   g_blePacketCharacteristic = service->createCharacteristic(
       BLE_PACKET_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
 
+  // Control characteristic for receiving commands (e.g., RESET_GYRO)
+  g_bleControlCharacteristic = service->createCharacteristic(
+      BLE_CONTROL_UUID,
+      NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+  static ControlCallbacks controlCallbacks; // static to ensure lifetime
+  g_bleControlCharacteristic->setCallbacks(&controlCallbacks);
+
   service->start();
 
   NimBLEAdvertising *advertising = NimBLEDevice::getAdvertising();
@@ -132,9 +166,11 @@ static void initialiseBle() {
 }
 
 static inline void printSensorJson(float ax, float ay, float az, float gx,
-                                   float gy, float gz, float temperatureC,
-                                   float rollDeg, float pitchDeg,
-                                   float yawDeg, float timeSec) {
+                                   float gy, float gz, float accumulatedGyroX,
+                                   float accumulatedGyroY,
+                                   float accumulatedGyroZ, float fusionRoll,
+                                   float fusionPitch, float fusionYaw,
+                                   float temperatureC, float timeSec) {
   Serial.print("{\"accel\":{\"x\":");
   Serial.print(ax, 3);
   Serial.print(",\"y\":");
@@ -149,16 +185,88 @@ static inline void printSensorJson(float ax, float ay, float az, float gx,
   Serial.print(gz, 2);
   Serial.print("},\"temp\":");
   Serial.print(temperatureC, 1);
-  Serial.print(",\"euler\":{\"roll\":");
-  Serial.print(rollDeg, 1);
+  Serial.print(",\"fusion\":{\"roll\":");
+  Serial.print(fusionRoll, 1);
   Serial.print(",\"pitch\":");
-  Serial.print(pitchDeg, 1);
+  Serial.print(fusionPitch, 1);
   Serial.print(",\"yaw\":");
-  Serial.print(yawDeg, 1);
+  Serial.print(fusionYaw, 1);
+  Serial.print("},\"gyroInt\":{\"roll\":");
+  Serial.print(accumulatedGyroX, 1);
+  Serial.print(",\"pitch\":");
+  Serial.print(accumulatedGyroY, 1);
+  Serial.print(",\"yaw\":");
+  Serial.print(accumulatedGyroZ, 1);
   Serial.print("},\"t\":");
   Serial.print(timeSec, 6);
   Serial.println("}");
   Serial.flush();
+}
+
+static void sendBLEPacket(float ax, float ay, float az, float gx, float gy,
+                          float gz, float accumulatedGyroX,
+                          float accumulatedGyroY, float accumulatedGyroZ,
+                          float fusionRoll, float fusionPitch, float fusionYaw,
+                          float temperatureC, float timeSec) {
+  float packet[14] = {ax,
+                      ay,
+                      az,
+                      gx,
+                      gy,
+                      gz,
+                      accumulatedGyroX,
+                      accumulatedGyroY,
+                      accumulatedGyroZ,
+                      fusionRoll,
+                      fusionPitch,
+                      fusionYaw,
+                      temperatureC,
+                      timeSec};
+  if (g_blePacketCharacteristic) {
+    g_blePacketCharacteristic->setValue(
+        reinterpret_cast<const uint8_t *>(packet), sizeof(packet));
+    g_blePacketCharacteristic->notify();
+  }
+}
+
+float wrapAngle(float angle) {
+  while (angle < -180.0f)
+    angle += 360.0f;
+  while (angle > 180.0f)
+    angle -= 360.0f;
+  return angle;
+}
+
+// Integrate gyroscope (deg/s) over deltaTime (s) into persistent quaternion
+// and output Euler angles (deg)
+static void updateGyroIntegration(const FusionVector gyroscopeDegPerSec,
+                                  const float deltaTime, float &outRollDeg,
+                                  float &outPitchDeg, float &outYawDeg) {
+  // Convert deg/s to rad/s
+  const float wx = FusionDegreesToRadians(gyroscopeDegPerSec.axis.x);
+  const float wy = FusionDegreesToRadians(gyroscopeDegPerSec.axis.y);
+  const float wz = FusionDegreesToRadians(gyroscopeDegPerSec.axis.z);
+  const float omegaMag = sqrtf(wx * wx + wy * wy + wz * wz);
+  if (omegaMag > 0.0f && deltaTime > 0.0f) {
+    const float angle = omegaMag * deltaTime; // radians
+    const float halfAngle = 0.5f * angle;
+    const float s = sinf(halfAngle) / omegaMag; // safe because omegaMag>0
+    const float c = cosf(halfAngle);
+    const FusionQuaternion delta = {.element = {
+                                        .w = c,
+                                        .x = wx * s,
+                                        .y = wy * s,
+                                        .z = wz * s,
+                                    }};
+    // q = q * delta
+    g_gyroQuaternion = FusionQuaternionMultiply(g_gyroQuaternion, delta);
+    g_gyroQuaternion = FusionQuaternionNormalise(g_gyroQuaternion);
+  }
+
+  const FusionEuler gyroEuler = FusionQuaternionToEuler(g_gyroQuaternion);
+  outRollDeg = wrapAngle(gyroEuler.angle.roll);
+  outPitchDeg = wrapAngle(gyroEuler.angle.pitch);
+  outYawDeg = wrapAngle(gyroEuler.angle.yaw);
 }
 
 void setup() {
@@ -197,7 +305,7 @@ void setup() {
       .gyroscopeRange = 2000.0f,      // deg/s (set to your gyro full-scale)
       .accelerationRejection = 10.0f, // degrees
       .magneticRejection = 0.0f,      // no magnetometer in use
-      .recoveryTriggerPeriod = 1000u    // samples (about ~5 s @ 200 Hz)
+      .recoveryTriggerPeriod = 1000u  // samples (about ~5 s @ 200 Hz)
   };
   FusionAhrsSetSettings(&g_ahrs, &settings);
 
@@ -205,7 +313,10 @@ void setup() {
   // are sent at
   FusionOffsetInitialise(&offset, 200);
 
-  g_lastUpdateMicros = micros();
+  lastUpdateMicros = micros();
+
+  // Reset pure gyro integrator orientation to identity
+  g_gyroQuaternion = FUSION_IDENTITY_QUATERNION;
 
   // BLE GATT server
   initialiseBle();
@@ -226,6 +337,32 @@ void loop() {
   setGreenLed(isCharged);
 
   // Read in the values from the sensor
+  // First, handle any incoming Serial commands (non-blocking)
+  static String serialCmdBuffer;
+  while (Serial.available() > 0) {
+    int b = Serial.read();
+    if (b < 0) break;
+    char c = (char)b;
+    if (c == '\n' || c == '\r') {
+      String line = serialCmdBuffer;
+      serialCmdBuffer = "";
+      line.trim();
+      line.toUpperCase();
+      if (line == "RESET_GYRO") {
+        resetGyroIntegration();
+      }
+    } else {
+      // Avoid unbounded growth
+      if (serialCmdBuffer.length() < 128) {
+        serialCmdBuffer += c;
+      } else {
+        // Reset buffer if too long without newline
+        serialCmdBuffer = "";
+      }
+    }
+  }
+
+  // Proceed with sensor sampling
   const float temperatureC = imu.readTempC();
 
   FusionVector gyroscope; // deg/s
@@ -238,23 +375,32 @@ void loop() {
   accelerometer.axis.y = imu.readFloatAccelY();
   accelerometer.axis.z = imu.readFloatAccelZ();
 
-  // Update gyroscope offset correction algorithm
-  gyroscope = FusionOffsetUpdate(&offset, gyroscope);
-
   // Delta time for AHRS update (seconds)
   const uint32_t now = micros();
-  float deltaTime = (now - g_lastUpdateMicros) / 1e6f;
-  g_lastUpdateMicros = now;
+  float deltaTime = (now - lastUpdateMicros) / 1e6f;
+  lastUpdateMicros = now;
   if (deltaTime <= 0.0f || deltaTime > 0.1f) {
     // Guard against unreasonable dt (e.g., on startup or USB stall)
     deltaTime = 0.01f;
   }
+
+  // Update gyroscope offset correction algorithm
+  gyroscope = FusionOffsetUpdate(&offset, gyroscope);
+
   // update the AHRS
   FusionAhrsUpdateNoMagnetometer(&g_ahrs, gyroscope, accelerometer, deltaTime);
 
   // Convert the quaternion to euler angles
-  const FusionEuler euler =
+  const FusionEuler fusionEuler =
       FusionQuaternionToEuler(FusionAhrsGetQuaternion(&g_ahrs));
+
+  // Integrate gyroscope into quaternion (axis-angle), then expose as Euler
+  // degrees
+  float accumulatedGyroX = 0.0f;
+  float accumulatedGyroY = 0.0f;
+  float accumulatedGyroZ = 0.0f;
+  updateGyroIntegration(gyroscope, deltaTime, accumulatedGyroX,
+                        accumulatedGyroY, accumulatedGyroZ);
 
   // Print the sensor data to the serial port
   // Emit one JSON object per line for the frontend to parse (only when BLE is
@@ -262,25 +408,20 @@ void loop() {
   if (!(g_bleServer && g_bleServer->getConnectedCount() > 0)) {
     printSensorJson(accelerometer.axis.x, accelerometer.axis.y,
                     accelerometer.axis.z, gyroscope.axis.x, gyroscope.axis.y,
-                    gyroscope.axis.z, temperatureC, euler.angle.roll,
-                    euler.angle.pitch, euler.angle.yaw, now / 1e6f);
+                    gyroscope.axis.z, accumulatedGyroX, accumulatedGyroY,
+                    accumulatedGyroZ, fusionEuler.angle.roll,
+                    fusionEuler.angle.pitch, fusionEuler.angle.yaw,
+                    temperatureC, now / 1e6f);
   }
 
   // Update BLE combined characteristic and notify if connected
   if (g_bleServer && g_bleServer->getConnectedCount() > 0) {
-    // Packet layout (little-endian float32):
-    // [ax, ay, az, gx, gy, gz, temperatureC, rollDeg, pitchDeg, yawDeg, timeSec]
-    float packet[11] = {accelerometer.axis.x, accelerometer.axis.y,
-                        accelerometer.axis.z, gyroscope.axis.x,
-                        gyroscope.axis.y,     gyroscope.axis.z,
-                        temperatureC,         euler.angle.roll,
-                        euler.angle.pitch,    euler.angle.yaw,
-                        now / 1e6f};
-    if (g_blePacketCharacteristic) {
-      g_blePacketCharacteristic->setValue(
-          reinterpret_cast<const uint8_t *>(packet), sizeof(packet));
-      g_blePacketCharacteristic->notify();
-    }
+    sendBLEPacket(accelerometer.axis.x, accelerometer.axis.y,
+                  accelerometer.axis.z, gyroscope.axis.x, gyroscope.axis.y,
+                  gyroscope.axis.z, accumulatedGyroX, accumulatedGyroY,
+                  accumulatedGyroZ, fusionEuler.angle.roll,
+                  fusionEuler.angle.pitch, fusionEuler.angle.yaw, temperatureC,
+                  now / 1e6f);
     // no need to blink the blue LED when connected
     blueBlinkOn = false;
     setBlueLed(true);

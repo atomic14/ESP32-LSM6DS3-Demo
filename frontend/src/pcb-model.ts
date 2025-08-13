@@ -7,8 +7,6 @@ export class PCBModel {
     private quaternion = new THREE.Quaternion();
     // Exponential smoothing time constant in milliseconds. Larger = smoother.
     private smoothingTimeConstantMs = 300;
-    // Separate quaternion that integrates gyro rates for display regardless of mode
-    private integratedGyroQuaternion = new THREE.Quaternion();
     // Fixed basis transform mapping sensor frame (Xs, Ys, Zs) to Three.js model frame (Xm, Ym, Zm)
     // Mapping used throughout: Xm = Xs, Ym = Zs, Zm = -Ys  => rotation Rx(-90°)
     private sensorToModel = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
@@ -17,7 +15,6 @@ export class PCBModel {
         this.scene = scene;
         // Start with identity orientation
         this.quaternion.identity();
-        this.integratedGyroQuaternion.identity();
     }
 
     async load(modelPath: string) {
@@ -233,84 +230,20 @@ export class PCBModel {
         this.applyRotationToModel();
     }
 
-    // Incremental orientation update by integrating gyro rates over dt (seconds)
-    updateOrientationFromGyro(gyroDegPerSec: { x: number; y: number; z: number }, dtSeconds: number) {
+    // Update from Euler angles (degrees)
+    updateOrientationFromEuler(eulerDeg: { roll: number; pitch: number; yaw: number }, _dtSeconds: number) {
         if (!this.model) return;
-        if (dtSeconds <= 0 || !isFinite(dtSeconds)) return;
-
-        // Convert degrees/sec to radians/sec
-        const gx = gyroDegPerSec.x * Math.PI / 180;
-        const gy = gyroDegPerSec.y * Math.PI / 180;
-        const gz = gyroDegPerSec.z * Math.PI / 180;
-
-        // Angular rate magnitude
-        const omegaMagnitude = Math.sqrt(gx * gx + gy * gy + gz * gz);
-        if (omegaMagnitude === 0) {
-            return; // no rotation needed
-        }
-
-        // Rotation over dt: axis = omega/|omega|, angle = |omega| * dt
-        const angle = omegaMagnitude * dtSeconds;
-        const axisX = gx / omegaMagnitude;
-        const axisY = gy / omegaMagnitude;
-        const axisZ = gz / omegaMagnitude;
-
-        const deltaQuaternion = new THREE.Quaternion();
-        deltaQuaternion.setFromAxisAngle(new THREE.Vector3(axisX, axisZ, -axisY), angle);
-
-        // Directly apply integrated rotation without smoothing for gyro mode
-        this.quaternion.multiply(deltaQuaternion).normalize();
-
-        this.applyRotationToModel();
-    }
-
-    // Always-on integration of gyro for display (independent from current mode)
-    integrateGyroForDisplay(gyroDegPerSec: { x: number; y: number; z: number }, dtSeconds: number) {
-        if (dtSeconds <= 0 || !isFinite(dtSeconds)) return;
-        const gx = gyroDegPerSec.x * Math.PI / 180;
-        const gy = gyroDegPerSec.y * Math.PI / 180;
-        const gz = gyroDegPerSec.z * Math.PI / 180;
-        const omegaMagnitude = Math.sqrt(gx * gx + gy * gy + gz * gz);
-        if (omegaMagnitude === 0) return;
-        const angle = omegaMagnitude * dtSeconds;
-        const axisX = gx / omegaMagnitude;
-        const axisY = gy / omegaMagnitude;
-        const axisZ = gz / omegaMagnitude;
-        const deltaQuaternion = new THREE.Quaternion();
-        // Match axis mapping used elsewhere
-        deltaQuaternion.setFromAxisAngle(new THREE.Vector3(axisX, axisZ, -axisY), angle);
-        this.integratedGyroQuaternion.multiply(deltaQuaternion).normalize();
-    }
-
-    // Absolute orientation from Fusion Euler angles (degrees)
-    updateOrientationFromFusionEuler(eulerDeg: { roll: number; pitch: number; yaw: number }, _dtSeconds: number) {
-        if (!this.model) return;
-        // Unwrap angles to avoid sudden flips at ±180° boundaries
-        const rollDeg = this.unwrapToPrev(eulerDeg.roll, this.prevEuler?.roll ?? eulerDeg.roll);
-        const pitchDeg = this.unwrapToPrev(eulerDeg.pitch, this.prevEuler?.pitch ?? eulerDeg.pitch);
-        const yawDeg = this.unwrapToPrev(eulerDeg.yaw, this.prevEuler?.yaw ?? eulerDeg.yaw);
-
-        // Reconstruct sensor quaternion using the same Euler convention as the library (ZYX)
         const qSensor = new THREE.Quaternion().setFromEuler(
-            new THREE.Euler(this.degToRad(rollDeg), this.degToRad(pitchDeg), this.degToRad(yawDeg), 'ZYX')
+            new THREE.Euler(this.degToRad(eulerDeg.roll), this.degToRad(eulerDeg.pitch), this.degToRad(eulerDeg.yaw), 'ZYX')
         );
 
         // Map sensor quaternion into model frame via conjugation by the fixed basis transform Rx(-90°)
         const qTarget = this.sensorToModel.clone().multiply(qSensor).multiply(this.sensorToModel.clone().invert());
 
-        // For fusion mode, apply AHRS output directly without additional smoothing
         this.quaternion.copy(qTarget);
         this.applyRotationToModel();
-        this.prevEuler = { roll: rollDeg, pitch: pitchDeg, yaw: yawDeg };
     }
 
-    private prevEuler: { roll: number; pitch: number; yaw: number } | null = null;
-    private unwrapToPrev(currentDeg: number, prevDeg: number): number {
-        const delta = currentDeg - prevDeg;
-        if (delta > 180) currentDeg -= 360;
-        else if (delta < -180) currentDeg += 360;
-        return currentDeg;
-    }
     private degToRad(d: number) { return d * Math.PI / 180; }
     // radToDeg no longer used; keep degToRad only
 
@@ -322,16 +255,6 @@ export class PCBModel {
 
     getModel(): THREE.Group | null {
         return this.model;
-    }
-
-    resetOrientation() {
-        // Backward-compat: keep as integrated gyro reset
-        this.integratedGyroQuaternion.identity();
-    }
-
-    // Explicitly reset only the integrated gyro (for display)
-    resetIntegratedGyro() {
-        this.integratedGyroQuaternion.identity();
     }
 
     // Explicitly reset the model orientation quaternion to identity
@@ -372,13 +295,6 @@ export class PCBModel {
     // Current model orientation as Euler degrees using ZYX order
     getEulerDegreesZYX(): { roll: number; pitch: number; yaw: number } {
         const e = new THREE.Euler().setFromQuaternion(this.quaternion, 'ZYX');
-        const radToDeg = (r: number) => r * 180 / Math.PI;
-        return { roll: radToDeg(e.x), pitch: radToDeg(e.y), yaw: radToDeg(e.z) };
-    }
-
-    // Integrated gyro-only orientation as Euler degrees using ZYX order
-    getIntegratedGyroEulerDegreesZYX(): { roll: number; pitch: number; yaw: number } {
-        const e = new THREE.Euler().setFromQuaternion(this.integratedGyroQuaternion, 'ZYX');
         const radToDeg = (r: number) => r * 180 / Math.PI;
         return { roll: radToDeg(e.x), pitch: radToDeg(e.y), yaw: radToDeg(e.z) };
     }
