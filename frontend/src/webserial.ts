@@ -89,7 +89,7 @@ export class WebSerialManager {
             
             // Open the port with ESP32S3 settings
             await this.port.open({ 
-                baudRate: 115200,
+                baudRate: 460800,
                 dataBits: 8,
                 stopBits: 1,
                 parity: 'none'
