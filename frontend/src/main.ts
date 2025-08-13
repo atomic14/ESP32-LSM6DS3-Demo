@@ -17,12 +17,15 @@ class AccelerometerApp {
     private smoothingSlider: HTMLInputElement;
     private smoothingValueSpan: HTMLSpanElement;
     
+    
     private modelFileInput!: HTMLInputElement;
     private modelFileButton!: HTMLButtonElement;
     private modelFileNameSpan!: HTMLSpanElement;
     private accelGraph: AccelGraph
     private gyroGraph: AccelGraph
     private fusionGraph: AccelGraph
+    private gyroIntGraph: AccelGraph
+    private tempGraph: AccelGraph
 
     // Orientation mode state
     private mode: 'accel' | 'gyro' | 'fusion' = 'accel';
@@ -60,17 +63,22 @@ class AccelerometerApp {
         this.smoothingSlider = document.getElementById('smoothing-slider') as HTMLInputElement;
         this.smoothingValueSpan = document.getElementById('smoothing-value') as HTMLSpanElement;
         
+        
         this.modelFileInput = document.getElementById('model-file') as HTMLInputElement;
         this.modelFileButton = document.getElementById('model-file-btn') as HTMLButtonElement;
         this.modelFileNameSpan = document.getElementById('model-file-name') as HTMLSpanElement;
 
-        // Initialize accelerometer, gyro, and fusion graphs
+        // Initialize accelerometer, gyro, fusion, integrated gyro, and temperature graphs
         const accelCanvas = document.getElementById('accel-graph') as HTMLCanvasElement;
-        this.accelGraph = new AccelGraph(accelCanvas, { historyLength: 360, minValue: -2, maxValue: 2, unitLabel: 'g', title: 'Accelerometer (g)' });
+        this.accelGraph = new AccelGraph(accelCanvas, { historyLength: 360, minValue: -2, maxValue: 2, unitLabel: 'g', title: 'Accelerometer (g)', seriesLabels: ['X','Y','Z'] });
         const gyroCanvas = document.getElementById('gyro-graph') as HTMLCanvasElement;
-        this.gyroGraph = new AccelGraph(gyroCanvas, { historyLength: 360, minValue: -250, maxValue: 250, unitLabel: '°/s', title: 'Gyroscope (°/s)' });
+        this.gyroGraph = new AccelGraph(gyroCanvas, { historyLength: 360, minValue: -250, maxValue: 250, unitLabel: '°/s', title: 'Gyroscope (°/s)', seriesLabels: ['X','Y','Z'] });
         const fusionCanvas = document.getElementById('fusion-graph') as HTMLCanvasElement;
-        this.fusionGraph = new AccelGraph(fusionCanvas, { historyLength: 360, minValue: -180, maxValue: 180, unitLabel: '°', title: 'Fusion (°)' });
+        this.fusionGraph = new AccelGraph(fusionCanvas, { historyLength: 360, minValue: -180, maxValue: 180, unitLabel: '°', title: 'Fusion (°)', seriesLabels: ['Roll','Pitch','Yaw'] });
+        const gyroIntCanvas = document.getElementById('gyro-int-graph') as HTMLCanvasElement;
+        this.gyroIntGraph = new AccelGraph(gyroIntCanvas, { historyLength: 360, minValue: -180, maxValue: 180, unitLabel: '°', title: 'Gyro Integrated (°)', seriesLabels: ['Roll','Pitch','Yaw'] });
+        const tempCanvas = document.getElementById('temp-graph') as HTMLCanvasElement;
+        this.tempGraph = new AccelGraph(tempCanvas, { historyLength: 360, minValue: 15, maxValue: 30, unitLabel: '°C', title: 'Temperature (°C)', seriesLabels: ['Temp'], autoscale: true, autoscalePadding: 0.1, minSpan: 5 });
 
         this.init();
     }
@@ -90,6 +98,8 @@ class AccelerometerApp {
             this.accelGraph.resize();
             this.gyroGraph.resize();
             this.fusionGraph.resize();
+            this.gyroIntGraph.resize();
+            this.tempGraph.resize();
         });
         
         // Set up event listeners
@@ -106,6 +116,7 @@ class AccelerometerApp {
         this.connectBtn.addEventListener('click', () => this.handleConnect());
         
         this.smoothingSlider.addEventListener('input', () => this.handleSmoothingChange());
+        
         
         this.modelFileInput.addEventListener('change', (e) => this.handleModelFileChange(e));
         this.modelFileButton.addEventListener('click', () => this.modelFileInput.click());
@@ -213,6 +224,8 @@ class AccelerometerApp {
             this.accelGraph.clear();
             this.gyroGraph.clear();
             this.fusionGraph.clear();
+            this.gyroIntGraph.clear();
+            this.tempGraph.clear();
             // Avoid large integration step on next connect
             this.prevDeviceTimeSec = null;
         });
@@ -270,6 +283,8 @@ class AccelerometerApp {
             this.accelGraph.clear();
             this.gyroGraph.clear();
             this.fusionGraph.clear();
+            this.gyroIntGraph.clear();
+            this.tempGraph.clear();
             this.prevDeviceTimeSec = null;
         });
         this.bleManager.on('data', (data: SensorData) => this.handleSensorData(data));
@@ -333,6 +348,8 @@ class AccelerometerApp {
         }
     }
 
+    
+
     private handleSensorData(data: SensorData) {
         // Update message rate using a 1s sliding window based on device time
         const nowSec = isFinite(data.t) ? data.t : (this.msgTimestamps.length ? this.msgTimestamps[this.msgTimestamps.length - 1] : 0);
@@ -382,12 +399,19 @@ class AccelerometerApp {
             const r = document.getElementById('gyro-int-roll');
             const p = document.getElementById('gyro-int-pitch');
             const y = document.getElementById('gyro-int-yaw');
+            const ir = this.normalize180(data.gyroInt.roll);
+            const ip = this.normalize180(data.gyroInt.pitch);
+            const iy = this.normalize180(data.gyroInt.yaw);
             if (r && p && y) {
-                r.textContent = this.normalize180(data.gyroInt.roll).toFixed(1);
-                p.textContent = this.normalize180(data.gyroInt.pitch).toFixed(1);
-                y.textContent = this.normalize180(data.gyroInt.yaw).toFixed(1);
+                r.textContent = ir.toFixed(1);
+                p.textContent = ip.toFixed(1);
+                y.textContent = iy.toFixed(1);
             }
+            this.gyroIntGraph.addPoint({ x: ir, y: ip, z: iy });
         }
+        // Temperature (raw)
+        document.getElementById('temperature')!.textContent = data.temperature.toFixed(1);
+        this.tempGraph.addPoint({ x: data.temperature, y: 0, z: 0 });
         if (data.fusion) {
             const r = data.fusion.roll;
             const p = data.fusion.pitch;

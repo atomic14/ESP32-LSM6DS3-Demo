@@ -64,7 +64,7 @@
         #accel-graph {
             position: absolute;
             right: 20px;
-            bottom: 20px;
+            bottom: 660px;
             width: 360px;
             height: 140px;
             z-index: 90;
@@ -175,6 +175,8 @@
                 </div>
             </div>
             
+            
+            
             <div class="control-group">
                 <h3>Sensor Data</h3>
                 <div class="data-display">
@@ -193,8 +195,10 @@
             </div>
         </div>
         <canvas id="accel-graph"></canvas>
-        <canvas id="gyro-graph" style="position: absolute; right: 20px; bottom: 180px; width: 360px; height: 140px; z-index: 90; border-radius: 8px; overflow: hidden; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4);"></canvas>
-        <canvas id="fusion-graph" style="position: absolute; right: 20px; bottom: 340px; width: 360px; height: 140px; z-index: 90; border-radius: 8px; overflow: hidden; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4);"></canvas>
+        <canvas id="gyro-graph" style="position: absolute; right: 20px; bottom: 500px; width: 360px; height: 140px; z-index: 90; border-radius: 8px; overflow: hidden; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4);"></canvas>
+        <canvas id="gyro-int-graph" style="position: absolute; right: 20px; bottom: 340px; width: 360px; height: 140px; z-index: 90; border-radius: 8px; overflow: hidden; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4);"></canvas>
+        <canvas id="fusion-graph" style="position: absolute; right: 20px; bottom: 180px; width: 360px; height: 140px; z-index: 90; border-radius: 8px; overflow: hidden; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4);"></canvas>
+        <canvas id="temp-graph" style="position: absolute; right: 20px; bottom: 20px; width: 360px; height: 140px; z-index: 90; border-radius: 8px; overflow: hidden; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4);"></canvas>
     </div>
     
     <script type="module" src="/src/main.ts"></script>

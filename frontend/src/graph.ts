@@ -6,6 +6,10 @@ interface AccelGraphOptions {
   maxValue?: number;
   unitLabel?: string; // label suffix for axis (e.g., 'g', '°/s')
   title?: string; // optional chart title
+  seriesLabels?: string[]; // labels for legend; length 1-3, defaults to ['X','Y','Z']
+  autoscale?: boolean; // if true, scale min/max from current data each draw
+  autoscalePadding?: number; // fraction of range to pad when autoscaling (default 0.1)
+  minSpan?: number; // enforce a minimum value span when autoscaling (same units as data)
 }
 
 /**
@@ -20,6 +24,11 @@ export class AccelGraph {
   private maxValue: number;
   private unitLabel: string;
   private title: string;
+  private seriesLabels: string[];
+  private seriesColors: string[] = ['#ff6666', '#66ff66', '#6699ff'];
+  private autoscale: boolean;
+  private autoscalePadding: number;
+  private minSpan: number;
   private seriesX: number[] = [];
   private seriesY: number[] = [];
   private seriesZ: number[] = [];
@@ -35,6 +44,12 @@ export class AccelGraph {
     this.maxValue = options.maxValue ?? 2;
     this.unitLabel = options.unitLabel ?? 'g';
     this.title = options.title ?? '';
+    this.seriesLabels = (options.seriesLabels && options.seriesLabels.length > 0)
+      ? options.seriesLabels.slice(0, 3)
+      : ['X', 'Y', 'Z'];
+    this.autoscale = options.autoscale ?? false;
+    this.autoscalePadding = Math.max(0, options.autoscalePadding ?? 0.1);
+    this.minSpan = Math.max(0, options.minSpan ?? 0);
 
     this.resize();
   }
@@ -103,9 +118,47 @@ export class AccelGraph {
       ctx.fillText(this.title, Math.floor(width / 2), 4);
     }
 
-    // Grid lines: zero, ±1 unit
+    // Determine display range (fixed or autoscaled)
+    const seriesData = [this.seriesX, this.seriesY, this.seriesZ];
+    const visibleCount = Math.max(1, Math.min(this.seriesLabels.length, 3));
+    let displayMin = this.minValue;
+    let displayMax = this.maxValue;
+    if (this.autoscale) {
+      let dataMin = Number.POSITIVE_INFINITY;
+      let dataMax = Number.NEGATIVE_INFINITY;
+      for (let i = 0; i < visibleCount; i++) {
+        const arr = seriesData[i];
+        for (let j = 0; j < arr.length; j++) {
+          const v = arr[j];
+          if (v < dataMin) dataMin = v;
+          if (v > dataMax) dataMax = v;
+        }
+      }
+      if (dataMin === Number.POSITIVE_INFINITY || dataMax === Number.NEGATIVE_INFINITY) {
+        // no data yet; keep configured range
+      } else {
+        if (dataMax - dataMin < 1e-6) {
+          // Avoid zero span; use a small default span around value
+          const center = (dataMax + dataMin) / 2;
+          dataMin = center - 0.5;
+          dataMax = center + 0.5;
+        }
+        const pad = (dataMax - dataMin) * this.autoscalePadding;
+        displayMin = dataMin - pad;
+        displayMax = dataMax + pad;
+        // Enforce minimum span around current center if requested
+        if (this.minSpan > 0 && (displayMax - displayMin) < this.minSpan) {
+          const center = (displayMax + displayMin) / 2;
+          const half = this.minSpan / 2;
+          displayMin = center - half;
+          displayMax = center + half;
+        }
+      }
+    }
+
+    // Grid lines
     const valueToY = (v: number) => {
-      const t = (v - this.minValue) / (this.maxValue - this.minValue);
+      const t = (v - displayMin) / (displayMax - displayMin);
       return Math.max(
         padTop,
         Math.min(height - padBottom, height - padBottom - t * (height - padTop - padBottom))
@@ -113,13 +166,28 @@ export class AccelGraph {
     };
     ctx.strokeStyle = 'rgba(255,255,255,0.08)';
     ctx.setLineDash([4, 4]);
-    [this.minValue, 0, 1, -1, this.maxValue].forEach((v) => {
-      const y = valueToY(v);
-      ctx.beginPath();
-      ctx.moveTo(padLeft, y + 0.5);
-      ctx.lineTo(width - padRight, y + 0.5);
-      ctx.stroke();
-    });
+    const gridValues: number[] = [displayMin, displayMax];
+    if (0 >= displayMin && 0 <= displayMax) gridValues.push(0);
+    // Optionally draw mid line
+    const mid = (displayMin + displayMax) / 2;
+    gridValues.push(mid);
+    // De-duplicate and sort
+    const seen = new Set<number>();
+    gridValues
+      .filter((v) => {
+        const key = Math.round(v * 1e6) / 1e6;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a - b)
+      .forEach((v) => {
+        const y = valueToY(v);
+        ctx.beginPath();
+        ctx.moveTo(padLeft, y + 0.5);
+        ctx.lineTo(width - padRight, y + 0.5);
+        ctx.stroke();
+      });
     ctx.setLineDash([]);
 
     // Labels for range
@@ -127,9 +195,9 @@ export class AccelGraph {
     ctx.font = '10px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(`${this.maxValue.toFixed(1)}${this.unitLabel}`, padLeft, 2);
+    ctx.fillText(`${displayMax.toFixed(1)}${this.unitLabel}`, padLeft, 2);
     ctx.textBaseline = 'bottom';
-    ctx.fillText(`${this.minValue.toFixed(1)}${this.unitLabel}`, padLeft, height - 2);
+    ctx.fillText(`${displayMin.toFixed(1)}${this.unitLabel}`, padLeft, height - 2);
 
     const drawSeries = (data: number[], color: string) => {
       if (data.length < 2) return;
@@ -149,17 +217,14 @@ export class AccelGraph {
       ctx.stroke();
     };
 
-    drawSeries(this.seriesX, '#ff6666');
-    drawSeries(this.seriesY, '#66ff66');
-    drawSeries(this.seriesZ, '#6699ff');
+    // Draw visible series
+    for (let i = 0; i < visibleCount; i++) {
+      drawSeries(seriesData[i], this.seriesColors[i]);
+    }
 
     // Legend (aligned to the right)
     const legendY = height - 6;
-    const legendItems = [
-      { label: 'X', color: '#ff6666' },
-      { label: 'Y', color: '#66ff66' },
-      { label: 'Z', color: '#6699ff' },
-    ];
+    const legendItems = this.seriesLabels.slice(0, 3).map((label, idx) => ({ label, color: this.seriesColors[idx] }));
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
     ctx.font = '10px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
