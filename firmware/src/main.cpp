@@ -8,8 +8,8 @@
 #include <LSM6DS3.h>
 #include <Wire.h>
 
-#include "BluetoothEmitter.h"
-#include "SerialEmitter.h"
+#include "BluetoothTransport.h"
+#include "SerialTransport.h"
 #include "IMUProcessor.h"
 #include "StatusLeds.h"
 
@@ -34,8 +34,8 @@
 // Sensor instance (I2C)
 LSM6DS3 imu(I2C_MODE, LSM6DS3_I2C_ADDR);
 
-static SerialEmitter *serialEmitter = nullptr;
-static BluetoothEmitter *bluetoothEmitter = nullptr;
+static SerialTransport *serialTransport = nullptr;
+static BluetoothTransport *bluetoothTransport = nullptr;
 static IMUProcessor *imuProcessor = nullptr;
 static StatusLeds *leds = nullptr;
 
@@ -68,11 +68,14 @@ void setup() {
   #endif
 
   imuProcessor = new IMUProcessor(&imu);
-  serialEmitter = new SerialEmitter(imuProcessor);
-  bluetoothEmitter = new BluetoothEmitter(imuProcessor);
+  auto resetGyro = []() {
+    if (imuProcessor) imuProcessor->resetGyroIntegration();
+  };
+  serialTransport = new SerialTransport(resetGyro);
+  bluetoothTransport = new BluetoothTransport(resetGyro);
 
-  serialEmitter->begin();
-  bluetoothEmitter->begin();
+  serialTransport->begin();
+  bluetoothTransport->begin();
 }
 
 void loop() {
@@ -91,18 +94,20 @@ void loop() {
   // First, handle any incoming Serial commands (non-blocking)
   imuProcessor->update();
 
-  serialEmitter->update();
-  bluetoothEmitter->update();
+  IMUData snapshot = imuProcessor->getData();
+
+  serialTransport->update(snapshot);
+  bluetoothTransport->update(snapshot);
 
   // Update BLE combined characteristic and notify if connected
-  if (bluetoothEmitter->isConnected()) {
+  if (bluetoothTransport->isConnected()) {
     // no need to blink the blue LED when connected
     if (leds) leds->setBlueLed(StatusLeds::LED_STATE_ON);
-    // disable serial emitter when connected to BLE
-    serialEmitter->setActive(false);
+    // disable serial transport when connected to BLE
+    serialTransport->setActive(false);
   } else {
     if (leds) leds->setBlueLed(StatusLeds::LED_STATE_BLINKING);
-    // re-enable serial emitter when not connected to BLE
-    serialEmitter->setActive(true);
+    // re-enable serial transport when not connected to BLE
+    serialTransport->setActive(true);
   }
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Emitter.h"
+#include "Transport.h"
 #include "IMUProcessor.h"
 #include <NimBLEDevice.h>
 
@@ -9,14 +9,14 @@
 #define BLE_PACKET_UUID "9c2a8b2a-6c7a-4b8b-bf3c-7f6b1f7f2001" // combined packet
 #define BLE_CONTROL_UUID "9c2a8b2a-6c7a-4b8b-bf3c-7f6b1f7f1001" // control write (commands)
 
-class BluetoothEmitter : public Emitter, NimBLECharacteristicCallbacks {
+class BluetoothTransport : public Transport, NimBLECharacteristicCallbacks {
 private:
   NimBLEServer *bleServer = nullptr;
   NimBLECharacteristic *blePacketCharacteristic;
   NimBLECharacteristic *bleControlCharacteristic;
 
 public:
-  BluetoothEmitter(IMUProcessor *imuProcessor): Emitter(imuProcessor, "BluetoothEmitter") {
+  BluetoothTransport(Transport::ResetGyroHandler onResetGyro): Transport("BluetoothTransport", onResetGyro) {
   }
 
   void begin() override {
@@ -52,27 +52,27 @@ public:
     advertising->enableScanResponse(true);
     advertising->start();
 
-    Emitter::begin();
+    Transport::begin();
   }
 
   bool isConnected() {
     return bleServer && bleServer->getConnectedCount() > 0;
   }
-  void send() override {
-    float packet[14] = {ax,
-                        ay,
-                        az,
-                        gx,
-                        gy,
-                        gz,
-                        accumulatedGyroX,
-                        accumulatedGyroY,
-                        accumulatedGyroZ,
-                        fusionRoll,
-                        fusionPitch,
-                        fusionYaw,
-                        temperatureC,
-                        timeSec};
+  void transmit() override {
+    float packet[14] = {data.ax,
+                        data.ay,
+                        data.az,
+                        data.gx,
+                        data.gy,
+                        data.gz,
+                        data.accumulatedGyroX,
+                        data.accumulatedGyroY,
+                        data.accumulatedGyroZ,
+                        data.fusionRoll,
+                        data.fusionPitch,
+                        data.fusionYaw,
+                        data.temperatureC,
+                        data.timeSec};
     if (blePacketCharacteristic) {
       blePacketCharacteristic->setValue(
           reinterpret_cast<const uint8_t *>(packet), sizeof(packet));
@@ -91,8 +91,6 @@ public:
     std::string cmd = value.substr(start, end - start);
     // Uppercase
     for (char &c : cmd) c = (char)toupper((unsigned char)c);
-    if (cmd == "RESET_GYRO") {
-      imuProcessor->resetGyroIntegration();
-    }
+    processCommand(cmd);
   }
 };

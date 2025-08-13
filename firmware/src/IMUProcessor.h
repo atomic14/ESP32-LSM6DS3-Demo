@@ -3,6 +3,29 @@
 #include <Arduino.h>
 #include <LSM6DS3.h>
 
+struct IMUData {
+  // accelerometer data - g
+  float ax;
+  float ay;
+  float az;
+  // gyro data - deg/s
+  float gx;
+  float gy;
+  float gz;
+  // accumulated gyro data - deg
+  float accumulatedGyroX;
+  float accumulatedGyroY;
+  float accumulatedGyroZ;
+  // fusion data - deg
+  float fusionRoll;
+  float fusionPitch;
+  float fusionYaw;
+  // temperature - C
+  float temperatureC;
+  // time - seconds
+  float timeSec;
+};
+
 class IMUProcessor {
 private:
   LSM6DS3 *imu;
@@ -123,5 +146,24 @@ public:
         FusionQuaternionToEuler(FusionAhrsGetQuaternion(&g_ahrs));
 
     updateGyroIntegration(gyroscopeDegPerSec, deltaTime);
+  }
+
+  IMUData getData() {
+    IMUData data;
+    data.ax = accelerometer.axis.x;
+    data.ay = accelerometer.axis.y;
+    data.az = accelerometer.axis.z;
+    data.gx = gyroscopeDegPerSec.axis.x;
+    data.gy = gyroscopeDegPerSec.axis.y;
+    data.gz = gyroscopeDegPerSec.axis.z;
+    data.accumulatedGyroX = accumulatedGyroX;
+    data.accumulatedGyroY = accumulatedGyroY;
+    data.accumulatedGyroZ = accumulatedGyroZ;
+    data.fusionRoll = fusionEuler.angle.roll;
+    data.fusionPitch = fusionEuler.angle.pitch;
+    data.fusionYaw = fusionEuler.angle.yaw;
+    data.temperatureC = temperatureC;
+    data.timeSec = lastUpdateMicros / 1e6f;
+    return data;
   }
 };

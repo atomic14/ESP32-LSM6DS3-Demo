@@ -1,42 +1,42 @@
 #pragma once
 
-#include "Emitter.h"
+#include "Transport.h"
 #include <sstream>
 
-class SerialEmitter : public Emitter {
+class SerialTransport : public Transport {
 public:
-  SerialEmitter(IMUProcessor *imuProcessor): Emitter(imuProcessor, "SerialEmitter") {
+  SerialTransport(Transport::ResetGyroHandler onResetGyro): Transport("SerialTransport", onResetGyro) {
   }
-  void send() override {
+  void transmit() override {
     std::stringstream ss;
     ss << "{\"accel\":{\"x\":";
-    ss << ax;
+    ss << data.ax;
     ss << ",\"y\":";
-    ss << ay;
+    ss << data.ay;
     ss << ",\"z\":";
-    ss << az;
+    ss << data.az;
     ss << "},\"gyro\":{\"x\":";
-    ss << gx;
+    ss << data.gx;
     ss << ",\"y\":";
-    ss << gy;
+    ss << data.gy;
     ss << ",\"z\":";
-    ss << gz;
+    ss << data.gz;
     ss << "},\"temp\":";
-    ss << temperatureC;
+    ss << data.temperatureC;
     ss << ",\"fusion\":{\"roll\":";
-    ss << fusionRoll;
+    ss << data.fusionRoll;
     ss << ",\"pitch\":";
-    ss << fusionPitch;
+    ss << data.fusionPitch;
     ss << ",\"yaw\":";
-    ss << fusionYaw;
+    ss << data.fusionYaw;
     ss << "},\"gyroInt\":{\"roll\":";
-    ss << accumulatedGyroX;
+    ss << data.accumulatedGyroX;
     ss << ",\"pitch\":";
-    ss << accumulatedGyroY;
+    ss << data.accumulatedGyroY;
     ss << ",\"yaw\":";
-    ss << accumulatedGyroZ;
+    ss << data.accumulatedGyroZ;
     ss << "},\"t\":";
-    ss << timeSec;
+    ss << data.timeSec;
     ss << "}";
     std::string s = ss.str();
     Serial.println(s.c_str());
@@ -54,9 +54,7 @@ public:
         serialCmdBuffer = "";
         line.trim();
         line.toUpperCase();
-        if (line == "RESET_GYRO") {
-          imuProcessor->resetGyroIntegration();
-        }
+        processCommand(line.c_str());
       } else {
         // Avoid unbounded growth
         if (serialCmdBuffer.length() < 128) {
