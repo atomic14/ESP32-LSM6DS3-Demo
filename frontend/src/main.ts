@@ -12,6 +12,7 @@ class AccelerometerApp {
     private pcbModel: PCBModel | null = null;
     private connectBtn: HTMLButtonElement;
     private connectBLEBtn!: HTMLButtonElement;
+    private themeToggleSwitch!: HTMLInputElement;
     private statusEl: HTMLElement;
     
     private smoothingSlider: HTMLInputElement;
@@ -67,6 +68,7 @@ class AccelerometerApp {
         this.modelFileInput = document.getElementById('model-file') as HTMLInputElement;
         this.modelFileButton = document.getElementById('model-file-btn') as HTMLButtonElement;
         this.modelFileNameSpan = document.getElementById('model-file-name') as HTMLSpanElement;
+        this.themeToggleSwitch = document.getElementById('theme-toggle-switch') as HTMLInputElement;
 
         // Initialize accelerometer, gyro, fusion, integrated gyro, and temperature graphs
         const accelCanvas = document.getElementById('accel-graph') as HTMLCanvasElement;
@@ -114,6 +116,18 @@ class AccelerometerApp {
 
     private setupEventListeners() {
         this.connectBtn.addEventListener('click', () => this.handleConnect());
+        if (this.themeToggleSwitch) {
+            const icon = document.getElementById('theme-icon');
+            // Default to dark mode visually and in scene
+            this.themeToggleSwitch.checked = false;
+            this.sceneManager.setSkyEnabled(false);
+            if (icon) icon.textContent = '🌙';
+            this.themeToggleSwitch.addEventListener('change', () => {
+                const enabled = this.themeToggleSwitch.checked;
+                this.sceneManager.setSkyEnabled(enabled);
+                if (icon) icon.textContent = enabled ? '☀️' : '🌙';
+            });
+        }
         
         this.smoothingSlider.addEventListener('input', () => this.handleSmoothingChange());
         

@@ -18,6 +18,69 @@
             overflow: hidden;
         }
         
+        /* Top-right toggle switch container */
+        #top-right-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 120;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0,0,0,0.25);
+            padding: 8px 10px;
+            border-radius: 999px;
+            backdrop-filter: blur(6px);
+        }
+        #theme-icon {
+            font-size: 16px;
+            line-height: 1;
+            user-select: none;
+        }
+        
+        /* Toggle switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 56px;
+            height: 30px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #222;
+            transition: 0.3s;
+            border-radius: 999px;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 24px;
+            width: 24px;
+            left: 3px;
+            top: 3px;
+            background-color: #fff;
+            transition: 0.3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        input:checked + .slider {
+            background: #87CEFA;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
         #app {
             width: 100vw;
             height: 100vh;
@@ -131,6 +194,13 @@
 <body>
     <div id="app">
         <div id="canvas-container"></div>
+            <div id="top-right-controls">
+                <span id="theme-icon" aria-hidden="true">🌙</span>
+                <label class="switch" title="Toggle sky (light/dark)">
+                    <input type="checkbox" id="theme-toggle-switch">
+                    <span class="slider"></span>
+                </label>
+            </div>
         <div id="ui">
             <div class="control-group">
                 <h3>Connection</h3>

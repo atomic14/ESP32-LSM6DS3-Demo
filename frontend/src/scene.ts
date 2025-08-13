@@ -1,10 +1,14 @@
 import * as THREE from 'three';
+import { Sky } from 'three/examples/jsm/objects/Sky.js';
 
 export class SceneManager {
     public scene: THREE.Scene;
     public camera: THREE.PerspectiveCamera;
     public renderer: THREE.WebGLRenderer;
     private container: HTMLElement;
+    private sky: Sky | null = null;
+    private sunDirection = new THREE.Vector3();
+    private skyEnabled = true;
 
     constructor() {
         this.scene = new THREE.Scene();
@@ -18,8 +22,8 @@ export class SceneManager {
     }
 
     async init() {
-        // Set up scene with lighter background
-        this.scene.background = new THREE.Color(0x333333);
+        // Default to dark background; sky can enable later
+        this.scene.background = new THREE.Color(0x111111);
         
         // Set up camera
         this.camera = new THREE.PerspectiveCamera(
@@ -43,11 +47,18 @@ export class SceneManager {
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.0;
         
         this.container.appendChild(this.renderer.domElement);
 
         // Add lights
         this.setupLighting();
+
+        // Add procedural sky (no external textures required)
+        this.setupSky();
+        // Start in dark mode
+        this.setSkyEnabled(false);
 
         // Add grid - smaller grid for PCB scale
         const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x444444);
@@ -110,6 +121,40 @@ export class SceneManager {
         const rimLight = new THREE.DirectionalLight(0xffffff, 0.5);
         rimLight.position.set(-10, 5, -10);
         this.scene.add(rimLight);
+    }
+
+    private setupSky() {
+        this.sky = new Sky();
+        // Keep sky within camera.far (5000)
+        this.sky.scale.setScalar(4000);
+        this.scene.add(this.sky);
+
+        const uniforms = (this.sky.material as THREE.ShaderMaterial).uniforms as Record<string, { value: number | THREE.Vector3 }>;
+        uniforms["turbidity"].value = 8;
+        uniforms["rayleigh"].value = 2;
+        uniforms["mieCoefficient"].value = 0.005;
+        uniforms["mieDirectionalG"].value = 0.8;
+
+        // Position the sun slightly above the horizon toward +X for nice highlights
+        const elevationDeg = 15; // 0 = horizon, 90 = zenith
+        const azimuthDeg = 0;    // -180..180, 0 toward +X
+        const phi = THREE.MathUtils.degToRad(90 - elevationDeg);
+        const theta = THREE.MathUtils.degToRad(azimuthDeg);
+        this.sunDirection.setFromSphericalCoords(1, phi, theta);
+        (uniforms["sunPosition"].value as THREE.Vector3).copy(this.sunDirection);
+        this.skyEnabled = true;
+        if (this.sky) this.sky.visible = true;
+    }
+
+    setSkyEnabled(enabled: boolean) {
+        this.skyEnabled = enabled;
+        if (this.sky) this.sky.visible = enabled;
+        // When sky is disabled, set a dark background color; otherwise let the sky render
+        this.scene.background = enabled ? null : new THREE.Color(0x111111);
+    }
+
+    getSkyEnabled(): boolean {
+        return this.skyEnabled;
     }
 
     private setupMouseControls() {
