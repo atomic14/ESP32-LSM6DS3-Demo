@@ -3,6 +3,8 @@
 
 # ESP32S3 IMU (Accelerometer + Gyroscope) Demo
 
+<iframe width="560" height="315" src="https://www.youtube.com/embed/6vpdAXEQaoQ?si=FPIHsByv4Kcjpzi-" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
 A complete hardware + software solution for real-time 3D IMU visualization. This project combines an ESP32S3 microcontroller with the LSM6DS3 accelerometer/gyroscope and a web-based 3D visualization frontend.
 
 If you find this project useful, please consider [supporting me on Patreon](https://www.patreon.com/atomic14).
@@ -13,9 +15,9 @@ Demo site: https://lsm6ds3.atomic14.com/
 
 ## Overview
 
-- **Hardware**: ESP32S3 + LSM6DS3 accelerometer with I2C communication
-- **Firmware**: Clean JSON data output over serial (115200 baud)
-- **Frontend**: Three.js web application with WebSerial API integration
+- **Hardware**: ESP32S3 + LSM6DS3 accelerometer/gyroscope over I2C
+- **Firmware**: JSON sensor stream over USB Serial (115200) and Bluetooth LE GATT
+- **Frontend**: Three.js web app with WebSerial and Web Bluetooth support
 - **Visualization**: Real-time 3D PCB orientation tracking with GLB model support
 
 ## Project Structure
@@ -36,13 +38,15 @@ Demo site: https://lsm6ds3.atomic14.com/
 ## Quick Start
 
 ### 1. Hardware Setup
-- **Board**: ESP32-S3-DevKitC-1
+- **Board**: ESP32-S3 Custom PCB
 - **Sensor**: LSM6DS3 accelerometer/gyroscope
-- **Wiring**: 
+- **Wiring**:
   - SDA → GPIO7
-  - SCL → GPIO15  
+  - SCL → GPIO15
   - VCC → 3.3V
   - GND → GND
+  - I2C speed: 400 kHz
+  - Default I2C address: 0x6B (settable to 0x6A)
 
 ### 2. Firmware Upload
 ```bash
@@ -60,53 +64,53 @@ npm run dev         # Start development server
 
 ### 4. Connect & Visualize
 1. Open `http://localhost:5173` in Chrome/Edge
-2. Click "Connect to ESP32S3"
-3. Select ESP32S3 serial port
-4. Choose an orientation mode:
+2. Connect via either path:
+   - WebSerial: Click "Connect via WebSerial" and choose the ESP32S3 port
+   - WebBluetooth: Click "Connect via WebBLE" and select a device named `ESP32IMU_v1`
+3. Choose an orientation mode:
    - `Accelerometer (abs)`: absolute tilt (pitch/roll) with optional smoothing
-   - `Gyro (integrated)`: integrates angular rate to track orientation
-   - `Fusion (AHRS)`: uses accelerometer and gyroscope data to estimate orientation - see this [repo](https://github.com/xioTechnologies/Fusion/tree/main) for details
-5. Use the `Reset` button to zero gyro integration if needed
-6. Tilt/rotate the PCB to see real-time 3D visualization
+   - `Gyro (integrated)`: integrates angular rate to track orientation; use "Reset Gyro" to re-zero
+   - `Fusion (AHRS)`: accelerometer + gyroscope via Fusion AHRS
+4. Optional: load a custom GLB model from the UI
+5. Tilt/rotate the PCB to see real-time 3D visualization
 
 ## Features
 
 ### Hardware
 - **I2C Communication**: LSM6DS3 accelerometer/gyroscope - you can adjust the pins and I2C address in `main.cpp`
 - **JSON Output**: Clean, parseable data format output over serial
+- **BLE GATT**: Notify characteristic for real-time data
 
 ### Frontend
-- **WebSerial Integration**: Direct browser-to-device communication
-- **3D PCB Model**: GLB file support with automatic scaling - you can load your own model as well
-- **Orientation Modes**: Accelerometer (absolute tilt) or Gyro (integrated) or Fusion (AHRS)
+- **WebSerial & WebBluetooth**: Connect over USB Serial or BLE GATT
+- **3D PCB Model**: GLB file support with optional custom model loading
+- **Orientation Modes**: Accelerometer (absolute tilt), Gyro (integrated), Fusion (AHRS)
 - **Adjustable Smoothing (Accel only)**: Fine-tune responsiveness vs stability
-- **Charts**: Live accelerometer and gyroscope charts with titles and right-aligned legends
+- **Charts**: Live accelerometer, gyroscope, and fusion Euler angle charts
+- **Message Rate**: Real-time device messages/second readout
 - **Lighting**: Specular reflections and realistic materials
 - **Mouse Controls**: Orbit camera, zoom, and inspect the model
 
 ## Data Format
 
-The firmware outputs JSON (example):
+The firmware outputs one JSON object per line on USB Serial when BLE is not connected. Fields:
 
 ```json
 {
-  // Accelerometer data in g
-  "accel": { "x": 0.123, "y": 0.456, "z": 0.789 },
-  // Gyroscope data in deg/s
-  "gyro": { "x": 1.23, "y": 4.56, "z": 7.89 },
-  // Euler angles in degrees (from Fusion AHRS)
-  "euler": { "roll": 10.0, "pitch": 20.0, "yaw": 30.0 },
-  // Temperature in °C
-  "temp": 25.4
+  "accel": { "x": 0.123, "y": 0.456, "z": 0.789 },      // g
+  "gyro": { "x": 1.23, "y": 4.56, "z": 7.89 },         // deg/s
+  "temp": 25.4,                                            // °C
+  "fusion": { "roll": 10.0, "pitch": 20.0, "yaw": 30.0 }, // deg, AHRS
+  "gyroInt": { "roll": 9.8, "pitch": 19.9, "yaw": 29.7 }, // deg, integrated gyro
+  "t": 123.456789                                          // device time in seconds
 }
 ```
 
 ## Browser Requirements
 
-- ✅ Chrome 89+ (WebSerial API support)
-- ✅ Edge 89+ (WebSerial API support)  
-- ❌ Firefox (no WebSerial support)
-- ❌ Safari (no WebSerial support)
+- ✅ Chrome/Edge 89+ (WebSerial and Web Bluetooth; requires HTTPS or localhost)
+- ❌ Firefox (no WebSerial/Web Bluetooth)
+- ❌ Safari (no WebSerial)
 
 ## Development Commands
 
@@ -145,14 +149,28 @@ npm run lint             # Code linting
 
 - **Accelerometer Range**: ±2g, ±4g, ±8g, ±16g (configurable)
 - **Gyroscope Range**: ±125°/s, ±250°/s, ±500°/s, ±1000°/s, ±2000°/s
-- **I2C Speed**: 100kHz for reliable communication
-- **Serial Baud Rate**: 115200 for fast data transfer
-- **Update Rate**: 10Hz (100ms intervals) by default (adjustable in firmware)
+- **I2C Speed**: 400 kHz
+- **Serial Baud Rate**: 115200
+- **Update Rate**: dependent on loop timing; see UI "Msgs/s"
 
 ## Sensor Fusion (AHRS)
 
 - Orientation fusion is provided by the xioTechnologies Fusion AHRS library. See the repository for details: [xioTechnologies/Fusion](https://github.com/xioTechnologies/Fusion/tree/main).
-- Configuration: NWU earth-frame convention; Euler angles extracted using ZYX order; magnetometer disabled in this project.
+- Configuration: NWU earth-frame convention; Euler angles extracted using ZYX; magnetometer disabled.
+
+## Bluetooth LE
+
+- Device name: `ESP32IMU_v1`
+- Service UUID: `9c2a8b2a-6c7a-4b8b-bf3c-7f6b1f7f0001`
+- Characteristics:
+  - Packet (notify, little-endian float32[14]):
+    `[ax, ay, az, gx, gy, gz, gyroIntRoll, gyroIntPitch, gyroIntYaw, fusionRoll, fusionPitch, fusionYaw, tempC, timeSec]`
+  - Control (write or write without response): ASCII commands, e.g. `RESET_GYRO\n`
+
+LEDs and battery pins (active-low):
+- Red LED solid while charging (not yet charged)
+- Green LED solid when charged
+- Blue LED blinks when not BLE-connected; solid when connected
 
 ## License
 
