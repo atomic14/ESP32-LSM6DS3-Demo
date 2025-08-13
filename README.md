@@ -3,7 +3,9 @@
 
 # ESP32S3 IMU (Accelerometer + Gyroscope) Demo
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/6vpdAXEQaoQ?si=FPIHsByv4Kcjpzi-" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+You can watch a video of this project in action here:
+
+[![Explanatory Video](https://img.youtube.com/vi/6vpdAXEQaoQ/0.jpg)](https://www.youtube.com/watch?v=6vpdAXEQaoQ)
 
 A complete hardware + software solution for real-time 3D IMU visualization. This project combines an ESP32S3 microcontroller with the LSM6DS3 accelerometer/gyroscope and a web-based 3D visualization frontend.
 
